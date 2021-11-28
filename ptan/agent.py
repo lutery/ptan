@@ -54,10 +54,16 @@ def float32_preprocessor(states):
 
 class DQNAgent(BaseAgent):
     """
+    DQN代理 是一个无内存记忆的DQN网络，不存储其他推理的数据
     DQNAgent is a memoryless DQN agent which calculates Q values
     from the observations and  converts them into the actions using action_selector
     """
     def __init__(self, dqn_model, action_selector, device="cpu", preprocessor=default_states_preprocessor):
+        '''
+        param dqn_model: dqn网络模型，训练的的网络
+        param action_selector: 动作选择器
+        '''
+        
         self.dqn_model = dqn_model
         self.action_selector = action_selector
         self.preprocessor = preprocessor
