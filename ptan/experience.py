@@ -323,14 +323,22 @@ class ExperienceSourceBuffer:
             ofs = random.randrange(self.lens[episode] - self.steps_count - 1)
             yield self.buffer[episode][ofs:ofs+self.steps_count]
 
-
+# 经验重放缓冲区，主要用于收集训练样本，提取训练样本
 class ExperienceReplayBuffer:
     def __init__(self, experience_source, buffer_size):
+        '''
+        param experience_source: 经验池
+        param buffer_size: 每次提取的样本大小
+        '''
+        
         assert isinstance(experience_source, (ExperienceSource, type(None)))
         assert isinstance(buffer_size, int)
+        # 经验池可以为NULL？
         self.experience_source_iter = None if experience_source is None else iter(experience_source)
         self.buffer = []
+        # 重放缓冲区的大小
         self.capacity = buffer_size
+        # 当前遍历的位置
         self.pos = 0
 
     def __len__(self):
