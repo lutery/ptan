@@ -333,7 +333,7 @@ class ExperienceReplayBuffer:
         
         assert isinstance(experience_source, (ExperienceSource, type(None)))
         assert isinstance(buffer_size, int)
-        # 经验池可以为NULL？
+        # 将经验池转换为迭代器
         self.experience_source_iter = None if experience_source is None else iter(experience_source)
         self.buffer = []
         # 重放缓冲区的大小
@@ -369,8 +369,10 @@ class ExperienceReplayBuffer:
 
     def populate(self, samples):
         """
-        Populates samples into the buffer
-        :param samples: how many samples to populate
+        Populates samples into the buffer 提取样本到重放缓存区中
+        :param samples: how many samples to populate  从样本池中提取多少个样本到缓冲区
+        
+        算法的原理及利用迭代器根据数量，从经验池中获取数据
         """
         for _ in range(samples):
             entry = next(self.experience_source_iter)
