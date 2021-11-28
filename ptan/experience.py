@@ -317,8 +317,10 @@ class ExperienceSourceBuffer:
     def __iter__(self):
         """
         Infinitely sample episode from the buffer and then sample item offset
+        迭代器方法
         """
         while True:
+            # 根据当前经验池的大小，创建一个集合
             episode = random.randrange(len(self.buffer))
             ofs = random.randrange(self.lens[episode] - self.steps_count - 1)
             yield self.buffer[episode][ofs:ofs+self.steps_count]
