@@ -76,13 +76,15 @@ class DQNAgent(BaseAgent):
         actions = self.action_selector(q)
         return actions, agent_states
 
-
+# 目标网络
 class TargetNet:
     """
     Wrapper around model which provides copy of it instead of trained weights
     """
     def __init__(self, model):
+        # 训练的网络模型
         self.model = model
+        # 拷贝一份，作为目标网路模型存储
         self.target_model = copy.deepcopy(model)
 
     def sync(self):
