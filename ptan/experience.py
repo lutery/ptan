@@ -126,6 +126,9 @@ class ExperienceSource:
             iter_idx += 1
 
     def pop_total_rewards(self):
+        """
+        返回所有采集的样本，并清空缓存
+        """
         r = self.total_rewards
         if r:
             self.total_rewards = []
