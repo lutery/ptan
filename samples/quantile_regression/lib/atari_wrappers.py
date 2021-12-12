@@ -51,35 +51,44 @@ class EpisodicLifeEnv(gym.Wrapper):
     def __init__(self, env):
         """Make end-of-life == end-of-episode, but only reset on true game over.
         Done by DeepMind for the DQN and co. since it helps value estimation.
+        该DQN扩展主要针对有血量或者多条命的游戏机制，如果单单不考虑血量来进行训练，
+        则不利有游戏的训练收敛
         """
         gym.Wrapper.__init__(self, env)
         self.lives = 0
         self.was_real_done  = True
 
     def _step(self, action):
+        # 执行一次，保存本次的结果
         obs, reward, done, info = self.env.step(action)
         self.was_real_done = done
         # check current lives, make loss of life terminal,
         # then update lives to handle bonus lives
+        # 确认当前的血量，根据血量来确认进一步更新损失值
         lives = self.env.unwrapped.ale.lives()
         if lives < self.lives and lives > 0:
             # for Qbert somtimes we stay in lives == 0 condtion for a few frames
             # so its important to keep lives > 0, so that we only reset once
             # the environment advertises done.
+            # 如果当前还存在血量但是比上一次的血量要低时，则将Done设置为True，表示游戏结束，这样
+            # 保证训练的有效。并且，因为我们是多帧合并，所以很可能会将生命==0的时候的生命也带入计算
+            # 这样是有问题的，需要杜绝
             done = True
         self.lives = lives
         return obs, reward, done, info
 
     def _reset(self, **kwargs):
-        """Reset only when lives are exhausted.
+        """Reset only when lives are exhausted. 只有真正结束的时候才调用环境的重置方法
         This way all states are still reachable even though lives are episodic,
         and the learner need not know about any of this behind-the-scenes.
+        没有结束则直接原地踏步
         """
         if self.was_real_done:
             obs = self.env.reset(**kwargs)
         else:
             # no-op step to advance from terminal/lost life state
             obs, _, _, _ = self.env.step(0)
+        # 获取当前的生命值
         self.lives = self.env.unwrapped.ale.lives()
         return obs
 
