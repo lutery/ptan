@@ -172,10 +172,16 @@ class LazyFrames(object):
         It exists purely to optimize memory usage which can be huge for DQN's 1M frames replay
         buffers.
         This object should only be converted to numpy array before being passed to the model.
-        You'd not belive how complex the previous solution was."""
+        You'd not belive how complex the previous solution was.
+        该对象确保观察之间的公共帧只存储一次。它的存在纯粹是为了优化内存使用，这对于DQN的1M帧重放来说是巨大的
+        缓冲区。
+        该对象在传递给模型之前应该只被转换为numpy数组。
+        你不会相信之前的解有多复杂
+        """
         self._frames = frames
 
     def __array__(self, dtype=None):
+        # 将多帧连接后，返回
         out = np.concatenate(self._frames, axis=0)
         if dtype is not None:
             out = out.astype(dtype)
@@ -184,19 +190,26 @@ class LazyFrames(object):
 
 class FrameStack(gym.Wrapper):
     def __init__(self, env, k):
-        """Stack k last frames.
+        """帧堆栈，通过这个保证每次返回的观察空间结果仅具备K帧组合
+        Stack k last frames.
+        仅存储最新的K帧
         Returns lazy array, which is much more memory efficient.
+        通过返回LazyFrame，优化内存的使用
         See Also
         --------
         baselines.common.atari_wrappers.LazyFrames
         """
         gym.Wrapper.__init__(self, env)
         self.k = k
+        # 创建一个最大只有K帧的队列，一旦长度超过K，那么自动将队头的帧去除
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape
+        # 因为k帧进行链接，所以观察空间的shape就变成了(shp[0]*k, shp[1], shp[2])
         self.observation_space = spaces.Box(low=0, high=255, shape=(shp[0]*k, shp[1], shp[2]), dtype=np.float32)
 
     def reset(self):
+        # 在重置的时候，因为只有一帧，所以进行这一帧复制K份进行存储
+        # 在通过get_ob将这K帧组合后返回
         ob = self.env.reset()
         for _ in range(self.k):
             self.frames.append(ob)
