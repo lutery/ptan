@@ -222,6 +222,7 @@ class ScaledFloatFrame(gym.ObservationWrapper):
 class ImageToPyTorch(gym.ObservationWrapper):
     """
     Change image shape to CWH
+    将图片转换为CWH的格式，适用于pytorch计算格式
     """
     def __init__(self, env):
         super(ImageToPyTorch, self).__init__(env)
