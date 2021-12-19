@@ -5,6 +5,10 @@ from gym import spaces
 import cv2
 
 class NoopResetEnv(gym.Wrapper):
+    """
+    多步重置类，会将游戏自动向前走随机步（最大noop_max）步，遇到游戏结束自动reset
+    """
+    
     def __init__(self, env, noop_max=30):
         """Sample initial states by taking random number of no-ops on reset.
         No-op is assumed to be action 0.
