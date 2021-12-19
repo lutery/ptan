@@ -97,6 +97,10 @@ class EpisodicLifeEnv(gym.Wrapper):
         return obs
 
 class MaxAndSkipEnv(gym.Wrapper):
+    """
+    自动
+    """
+    
     def __init__(self, env, skip=4):
         """Return only every `skip`-th frame"""
         gym.Wrapper.__init__(self, env)
