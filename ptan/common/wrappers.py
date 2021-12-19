@@ -161,6 +161,10 @@ class ProcessFrame84(gym.ObservationWrapper):
 
 
 class ClippedRewardsWrapper(gym.RewardWrapper):
+    """
+    通过使用Numpy sign, 将激励限制在-1~1之间
+    """
+    
     def reward(self, reward):
         """Change all the positive rewards to 1, negative to -1 and keep zero."""
         return np.sign(reward)
