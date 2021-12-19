@@ -128,15 +128,25 @@ class MaxAndSkipEnv(gym.Wrapper):
 
 
 class ProcessFrame84(gym.ObservationWrapper):
+    """
+    将游戏画面（观察空间）转换为84*84的灰度图片
+    """
+    
     def __init__(self, env=None):
         super(ProcessFrame84, self).__init__(env)
+        # 创建新的观察空间，值范围0~255的单通道（84*84）尺寸的图片
         self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84, 1), dtype=np.uint8)
 
     def observation(self, obs):
+        """
+        将观察状态进行转换
+        """
         return ProcessFrame84.process(obs)
 
     @staticmethod
     def process(frame):
+        # 根据不同的帧尺寸进行转换为灰度单通道84，118的帧
+        # 然后直接截取高度中间的部分，作为84*84的图片显示
         if frame.size == 210 * 160 * 3:
             img = np.reshape(frame, [210, 160, 3]).astype(np.float32)
         elif frame.size == 250 * 160 * 3:
