@@ -224,11 +224,19 @@ class ImageToPyTorch(gym.ObservationWrapper):
 
 
 def wrap_dqn(env, stack_frames=4, episodic_life=True, reward_clipping=True):
-    """Apply a common set of wrappers for Atari games."""
+    """
+    Apply a common set of wrappers for Atari games.
+    扩展dqn环境
+    param env:
+    param stack_frames:
+    param episodic_life: 是否创建基于血量值的环境
+    param reward_clipping:
+    """
     assert 'NoFrameskip' in env.spec.id
     if episodic_life:
         env = EpisodicLifeEnv(env)
     env = NoopResetEnv(env, noop_max=30)
+    # todo 弄明白这个MaxAndSkipEnv的作用
     env = MaxAndSkipEnv(env, skip=4)
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)
