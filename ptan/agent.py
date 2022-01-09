@@ -71,6 +71,9 @@ class DQNAgent(BaseAgent):
 
     @torch.no_grad()
     def __call__(self, states, agent_states=None):
+        # 从给定的一系列states中，选择将要执行的动作值
+        # 而agent_states并没有参与计算，仅仅只是保证如果是None则返回和states维度一样的None列表
+        # 如果非None，则返回原值，作用未知
         if agent_states is None:
             agent_states = [None] * len(states)
         if self.preprocessor is not None:
