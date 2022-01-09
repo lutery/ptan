@@ -18,18 +18,22 @@ Experience = namedtuple('Experience', ['state', 'action', 'reward', 'done'])
 class ExperienceSource:
     """
     Simple n-step experience source using single or multiple environments
+    简单的存储n步的经验采集样本，用于单个或者多个环境中
 
     Every experience contains n list of Experience entries
+    每个经验样本集都包含n步的经验
     """
     def __init__(self, env, agent, steps_count=2, steps_delta=1, vectorized=False):
         """
         Create simple experience source
-        :param env: environment or list of environments to be used
-        :param agent: callable to convert batch of states into actions to take
-        :param steps_count: count of steps to track for every experience chain
-        :param steps_delta: how many steps to do between experience items
-        :param vectorized: support of vectorized envs from OpenAI universe
+        :param env: environment or list of environments to be used 环境信息或者环境信息列表
+        :param agent: callable to convert batch of states into actions to take 代理信息
+        :param steps_count: count of steps to track for every experience chain todo
+        :param steps_delta: how many steps to do between experience items todo
+        :param vectorized: support of vectorized envs from OpenAI universe 
         """
+        # 判断经验传入的参数类型是否正确
+        # 并存储到成员变量
         assert isinstance(env, (gym.Env, list, tuple))
         assert isinstance(agent, BaseAgent)
         assert isinstance(steps_count, int)
@@ -163,13 +167,18 @@ ExperienceFirstLast = collections.namedtuple('ExperienceFirstLast', ('state', 'a
 
 class ExperienceSourceFirstLast(ExperienceSource):
     """
+    继承自ExperienceSource
     This is a wrapper around ExperienceSource to prevent storing full trajectory in replay buffer when we need
     only first and last states. For every trajectory piece it calculates discounted reward and emits only first
     and last states and action taken in the first state.
+    这是一个围绕着ExperienceSource的包装器，以防止在我们需要的时候在回放缓冲区中存储完整的轨迹
+    只有第一个和最后一个状态去查询完整的轨迹。对于每一个轨迹在计算激励时仅需要第一个状态、最后一个状态、在第一个状态时所执行的动作
 
     If we have partial trajectory at the end of episode, last_state will be None
+    如果我们所获取的轨迹是包含结束，那么最后一个状态将会是None
     """
     def __init__(self, env, agent, gamma, steps_count=1, steps_delta=1, vectorized=False):
+        # 判断参数类型、初始化父类、存储到成员变量
         assert isinstance(gamma, float)
         super(ExperienceSourceFirstLast, self).__init__(env, agent, steps_count+1, steps_delta, vectorized=vectorized)
         self.gamma = gamma
