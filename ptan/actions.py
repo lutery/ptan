@@ -20,11 +20,16 @@ class ArgmaxActionSelector(ActionSelector):
 
 
 class EpsilonGreedyActionSelector(ActionSelector):
+    # epsilon动作选择器
     def __init__(self, epsilon=0.05, selector=None):
         self.epsilon = epsilon
         self.selector = selector if selector is not None else ArgmaxActionSelector()
 
     def __call__(self, scores):
+        # 原理是根据网路推理出现的每个动作所执行后得到的q值，
+        # 根据每个动作的q值选择将要执行的动作
+        # 再根据epsilon决定是否需要将动作用随机动作替代
+        # 最后返回选择的动作
         assert isinstance(scores, np.ndarray)
         batch_size, n_actions = scores.shape
         actions = self.selector(scores)
