@@ -52,6 +52,7 @@ class ExperienceSource:
         self.vectorized = vectorized
 
     def __iter__(self):
+        # 这个接口就是运行环境并获取观测值，填充经验缓冲区的地方
         # states: 存储每一次的环境观测值
         # agent_states: 存储游戏网络的代理的初始状态
         # histories: 存储的好像是一个队列，长度为step_ount，具体作用未知 todo
@@ -243,7 +244,9 @@ class ExperienceSourceFirstLast(ExperienceSource):
         self.steps = steps_count
 
     def __iter__(self):
+        # 遍历当前环境获取的经验缓冲区
         for exp in super(ExperienceSourceFirstLast, self).__iter__():
+            # 如果游戏结束，那么最后的状态设置为None
             if exp[-1].done and len(exp) <= self.steps:
                 last_state = None
                 elems = exp
