@@ -28,7 +28,7 @@ class ExperienceSource:
         Create simple experience source
         :param env: environment or list of environments to be used 环境信息或者环境信息列表
         :param agent: callable to convert batch of states into actions to take 代理信息
-        :param steps_count: count of steps to track for every experience chain todo
+        :param steps_count: count of steps to track for every experience chain 需要追溯多少步以前的记录
         :param steps_delta: how many steps to do between experience items todo
         :param vectorized: support of vectorized envs from OpenAI universe 
         """
@@ -53,14 +53,20 @@ class ExperienceSource:
 
     def __iter__(self):
         # 这个接口就是运行环境并获取观测值，填充经验缓冲区的地方
+        # 
+        # return: 
+        # 
+        
         # states: 存储每一次的环境观测值
         # agent_states: 存储游戏网络的代理的初始状态
         # histories: 存储的好像是一个队列，长度为step_ount，具体作用未知 todo
         # cur_rewards: 存储每次游戏观测的激励，游戏初始化时存储的是0.0
         # cur_steps: 存储当前观测结果的步数（todo），游戏初始化时存储的是0
         # agent_states： 代理状态 todo 作用
+
         states, agent_states, histories, cur_rewards, cur_steps = [], [], [], [], []
         # 存储每次环境观测值的长度（因为矢量的环境其返回的结果值是一个不定长度的列表）
+        # 每个索引对应着states中对应索引的长度
         env_lens = []
         # 遍历每一个游戏环境
         for env in self.pool:
@@ -87,9 +93,9 @@ class ExperienceSource:
             # 遍历本次环境观测的结果
             for _ in range(obs_len):
                 histories.append(deque(maxlen=self.steps_count))
-                cur_rewards.append(0.0)
+                cur_rewards.append(0.0) 
                 cur_steps.append(0)
-                agent_states.append(self.agent.initial_state())
+                agent_states.append(self.agent.initial_state()) # 存储代理状态，reset环境时，代理状态是初始状态
         
         # 遍历索引
         iter_idx = 0
