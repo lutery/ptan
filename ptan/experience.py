@@ -59,7 +59,7 @@ class ExperienceSource:
         
         # states: 存储每一次的环境观测值
         # agent_states: 存储游戏网络的代理的初始状态
-        # histories: 存储的好像是一个队列，长度为step_ount，具体作用未知 todo
+        # histories: 存储的好像是一个队列，长度为step_ount，存储的应该是历史记录，存储多少步以前的状态等信息 todo
         # cur_rewards: 存储每次游戏观测的激励，游戏初始化时存储的是0.0
         # cur_steps: 存储当前观测结果的步数（todo），游戏初始化时存储的是0
         # agent_states： 代理状态 todo 作用
@@ -69,6 +69,7 @@ class ExperienceSource:
         # 每个索引对应着states中对应索引的长度
         env_lens = []
         # 遍历每一个游戏环境
+        # 这一大段的循环作用是初始化环境，得到初始化结果
         for env in self.pool:
             # 每一次遍历时，重置游戏环境
             obs = env.reset()
@@ -92,22 +93,26 @@ class ExperienceSource:
             
             # 遍历本次环境观测的结果
             for _ in range(obs_len):
-                histories.append(deque(maxlen=self.steps_count))
-                cur_rewards.append(0.0) 
-                cur_steps.append(0)
+                histories.append(deque(maxlen=self.steps_count)) # 创建对应环境观测结果历史缓存队列
+                cur_rewards.append(0.0)  # 存储最初是状态下的激励，为0
+                cur_steps.append(0) # 存储当前行走的部署，为0
                 agent_states.append(self.agent.initial_state()) # 存储代理状态，reset环境时，代理状态是初始状态
         
         # 遍历索引
+        # 从里这开始，应该就是尝试运行游戏了
         iter_idx = 0
-        while True:
-            actions = [None] * len(states)
+        while True: 
+            actions = [None] * len(states) # todo
             states_input = []
             states_indices = []
             # 遍历每一次的存储的观测状态
             # 对于非矢量环境来说，idx仅仅对应一个当前状态，但是对于矢量环境来说，idx对应当前获取的每个一观测值的索引
+            # 这一个大循环的作用应该是，根据环境执行得到执行的动作结果
+            # todo 有一个问题，矢量环境获取的多个观测结果这里怎么分辨
             for idx, state in enumerate(states):
                 if state is None:
-                    # 如果状态是空的，则使用环境进行随机选择一个动作执行
+                    # 如果状态是空的，则使用环境进行随机选择一个动作执行， 另外这里假设的所有的环境都有相同的动作空间，
+                    # 所以这里仅使用0索引环境进行随机动作采样
                     actions[idx] = self.pool[0].action_space.sample()  # assume that all envs are from the same family
                 else:
                     # 如果状态非空，则将当前的存储在states环境观测值存储在states_input中
@@ -115,7 +120,7 @@ class ExperienceSource:
                     states_input.append(state)
                     states_indices.append(idx)
             if states_input:
-                # 如果观测的状态列表非空，则将状态输入的网络环境代理中，获取将要执行的动作
+                # 如果观测的状态列表非空，则将状态输入的神经网络环境代理中，获取将要执行的动作
                 # 而agent_staes根据源码，发现并未做处理
                 states_actions, new_agent_states = self.agent(states_input, agent_states)
                 # 遍历每一个状态所要执行的动作
@@ -124,16 +129,18 @@ class ExperienceSource:
                     g_idx = states_indices[idx]
                     # 将执行的动作存储在与状态相对应的索引上
                     actions[g_idx] = action
-                    # 跟新代理状态（todo 作用）
+                    # 代理状态（todo 作用）
                     agent_states[g_idx] = new_agent_states[idx]
-            # todo 
+            # 将动作按照原先存储的每个环境得到的观测结果长度，按照环境数组进行重新分割分组
             grouped_actions = _group_list(actions, env_lens)
             
             # 因为存在一个大循环，存储每个环境的起始索引位置
             global_ofs = 0
             # 遍历每一个环境
+            # 这一个大循环是将上一个循环中得到的执行动作应用到实际的环境中
             for env_idx, (env, action_n) in enumerate(zip(self.pool, grouped_actions)):
                 if self.vectorized:
+                    # 这里action_n是一个list，也就是说矢量环境的输入的一个多维
                     # 如果是矢量的环境，则直接执行动作获取下一个状态，激励，是否结束等观测值
                     next_state_n, r_n, is_done_n, _ = env.step(action_n)
                 else:
@@ -214,6 +221,8 @@ class ExperienceSource:
 def _group_list(items, lens):
     """
     Unflat the list of items by lens
+    反平铺队列，也就是将原先list 一维的数据，跟进lens进行分割，实现二维的队列
+    [...] => [[.], [[.], [.]], .]
     :param items: list of items
     :param lens: list of integers
     :return: list of list of items grouped by lengths
@@ -241,6 +250,8 @@ class ExperienceSourceFirstLast(ExperienceSource):
 
     If we have partial trajectory at the end of episode, last_state will be None
     如果我们所获取的轨迹是包含结束，那么最后一个状态将会是None
+    
+    # todo steps_delta的作用
     """
     def __init__(self, env, agent, gamma, steps_count=1, steps_delta=1, vectorized=False):
         # 判断参数类型、初始化父类、存储到成员变量
