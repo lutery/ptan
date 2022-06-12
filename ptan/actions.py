@@ -30,6 +30,7 @@ class EpsilonGreedyActionSelector(ActionSelector):
         # 根据每个动作的q值选择将要执行的动作
         # 再根据epsilon决定是否需要将动作用随机动作替代
         # 最后返回选择的动作
+        # parma scores: q值 维度是可能都所执行的每一个动作带来的q值，多维
         assert isinstance(scores, np.ndarray)
         batch_size, n_actions = scores.shape
         actions = self.selector(scores)
