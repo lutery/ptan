@@ -77,17 +77,15 @@ class ExperienceSource:
             # 每一次遍历时，重置游戏环境
             obs = env.reset()
             # if the environment is vectorized, all it's output is lists of results.
-            # 如果环境是矢量的，那么它的输出就是一个结果列表
-            # Details are here: https://github.com/openai/universe/blob/master/doc/env_semantics.rst
-            # 链接貌似没有说为什么矢量的环境输出是一个结果列表
+            # 如果支持矢量计算，那么可以将多个环境的输出结果，拼接到矩阵向量中，直接进行计算，效率比单个计算高
             if self.vectorized:
                 # 矢量环境
-                # 计算观测的长度
+                # 获取单词观察结果的向量长度
                 obs_len = len(obs)
                 # 将当前状态结果列表（应该是包含了环境状态，激励，动作，是否结束等信息）存储在states
                 states.extend(obs)
             else:
-                # 非矢量环境
+                # 非矢量环境下，其观测的结果就是一个标量，简单说就是一个动作值，所以
                 # 长度是1
                 obs_len = 1
                 # 将结果存储在status中
