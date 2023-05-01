@@ -237,6 +237,10 @@ def _group_list(items, lens):
 
 
 # those entries are emitted from ExperienceSourceFirstLast. Reward is discounted over the trajectory piece
+# state：当前的状态观测值
+# action：当前状态下执行的动作
+# reward：当前状态下获取的激励，如果是n步dqn，那么这个reward是n步下，省略了max q下得到的n步激励值和
+# last_state: 下一个状态，如果是n步dqn，那么last_state表示第n步的下一个状态，用于计算最后一个状态的下一个状态的max q值
 ExperienceFirstLast = collections.namedtuple('ExperienceFirstLast', ('state', 'action', 'reward', 'last_state'))
 
 
@@ -265,12 +269,19 @@ class ExperienceSourceFirstLast(ExperienceSource):
         # 遍历当前环境获取的经验缓冲区
         for exp in super(ExperienceSourceFirstLast, self).__iter__():
             # 如果游戏结束，那么最后的状态设置为None
+            # 返回的exp经验长度，会根据self.steps的长度不同而不同
+            # 这个特性主要应用于N步dqn
+            # 因为n步dqn的计算，需要利用到最后一个状态值计算q值，得到第n步的q值
             if exp[-1].done and len(exp) <= self.steps:
                 last_state = None
                 elems = exp
             else:
+                # 获取最后一个经验的状态值
                 last_state = exp[-1].state
                 elems = exp[:-1]
+            total_reward = 0.0
+            # 根据书中第120页的计算公式，计算bellman中，除了max q值的部分的激励值
+            # 因为计算的时候省略中间步骤的max q操作
             total_reward = 0.0
             for e in reversed(elems):
                 total_reward *= self.gamma
