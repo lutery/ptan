@@ -5,6 +5,7 @@ from typing import Union
 class ActionSelector:
     """
     Abstract class which converts scores to the actions
+    动作选择器基类
     """
     def __call__(self, scores):
         raise NotImplementedError
@@ -13,14 +14,16 @@ class ActionSelector:
 class ArgmaxActionSelector(ActionSelector):
     """
     Selects actions using argmax
+    基于最大Q值的动作选择器
     """
     def __call__(self, scores):
         assert isinstance(scores, np.ndarray)
+        # 每个记录中都选择Q值最大的作为需要执行的动作
         return np.argmax(scores, axis=1)
 
 
 class EpsilonGreedyActionSelector(ActionSelector):
-    # epsilon动作选择器
+    # epsilon的随机动作选择器
     def __init__(self, epsilon=0.05, selector=None):
         self.epsilon = epsilon
         self.selector = selector if selector is not None else ArgmaxActionSelector()
