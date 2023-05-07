@@ -269,7 +269,7 @@ class ExperienceSourceFirstLast(ExperienceSource):
         # 遍历当前环境获取的经验缓冲区
         for exp in super(ExperienceSourceFirstLast, self).__iter__():
             # 如果游戏结束，那么最后的状态设置为None
-            # 返回的exp经验长度，会根据self.steps的长度不同而不同
+            # 返回的exp经验长度，会根据self.steps的长度不同而不同，这里的self.steps主要用于n步dqn的计算，提取最后一步的记录反馈和状态，如果是对于其他的方法，通常设置为1即可
             # 这个特性主要应用于N步dqn
             # 因为n步dqn的计算，需要利用到最后一个状态值计算q值，得到第n步的q值
             if exp[-1].done and len(exp) <= self.steps:
