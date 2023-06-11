@@ -261,6 +261,9 @@ class ExperienceSourceFirstLast(ExperienceSource):
     def __init__(self, env, agent, gamma, steps_count=1, steps_delta=1, vectorized=False):
         # 判断参数类型、初始化父类、存储到成员变量
         assert isinstance(gamma, float)
+        # 这里+1是因为，实际上在采样时，每次__iter__都只是获取当前执行完动作后当前的环境状态，而不知道下一个状态，所以需要+1，使得__iter__每次都能够返回2个采样，而
+        # 最后一个采样就是下一个状态
+        # todo 但是从代码中看到，这个当前状态实际上执行完step后才获取的，那么理论上这里的状态应该是下一个状态next_state，与实际需要获取的貌似不太匹配，需要查明原因
         super(ExperienceSourceFirstLast, self).__init__(env, agent, steps_count+1, steps_delta, vectorized=vectorized)
         self.gamma = gamma
         self.steps = steps_count
