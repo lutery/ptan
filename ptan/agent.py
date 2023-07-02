@@ -122,7 +122,7 @@ class PolicyAgent(BaseAgent):
                  apply_softmax=False, preprocessor=default_states_preprocessor):
                      '''
                      model: 策略动作推理网络
-                     preprocessor: todo
+                     preprocessor: 将计算的结果转换的数据类型，比如转换为float32
                      apply_softmax: 使用对model的计算结果使用softmax计算结果
                      '''
         self.model = model
