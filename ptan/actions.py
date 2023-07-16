@@ -53,10 +53,13 @@ class EpsilonGreedyActionSelector(ActionSelector):
 class ProbabilityActionSelector(ActionSelector):
     """
     Converts probabilities of actions into action by sampling them
+    概率动作选择器
     """
     def __call__(self, probs):
         assert isinstance(probs, np.ndarray)
         actions = []
+        #利用np.random.choice基于概率的方式，选择需要执行的动作，因为
+        # 实际是有batch个动作，所以这里需要循环每个都计算选择
         for prob in probs:
             actions.append(np.random.choice(len(prob), p=prob))
         return np.array(actions)
