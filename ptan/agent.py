@@ -39,6 +39,9 @@ def default_states_preprocessor(states):
     Convert list of states into the form suitable for model. By default we assume Variable
     :param states: list of numpy arrays with states
     :return: Variable
+    这个预处理器的方法就是将list转换为矩阵的形式
+    如果state是一维的，那么就将其转换为[1, D]的形式
+    如果state是多维的，那么就将其转换为[N, E, D]的形式
     """
     if len(states) == 1:
         np_states = np.expand_dims(states[0], 0)
@@ -48,6 +51,9 @@ def default_states_preprocessor(states):
 
 
 def float32_preprocessor(states):
+    '''
+    将状态矩阵转换为float32数值类型的tensor
+    '''
     np_states = np.array(states, dtype=np.float32)
     return torch.tensor(np_states)
 
@@ -76,10 +82,12 @@ class DQNAgent(BaseAgent):
         # 如果非None，则返回原值，作用未知
         if agent_states is None:
             agent_states = [None] * len(states)
+        # 如果定义了预处理器，则将state进行预处理
         if self.preprocessor is not None:
             states = self.preprocessor(states)
             if torch.is_tensor(states):
                 states = states.to(self.device)
+        # 用传入的模型计算预测q值或者动作概率
         q_v = self.dqn_model(states)
         q = q_v.data.cpu().numpy()
         actions = self.action_selector(q)
@@ -140,14 +148,18 @@ class PolicyAgent(BaseAgent):
         """
         if agent_states is None:
             agent_states = [None] * len(states)
+        # 如果定义了预处理器，则进行预处理擦欧总
         if self.preprocessor is not None:
             states = self.preprocessor(states)
             if torch.is_tensor(states):
                 states = states.to(self.device)
+        # 计算动作概率
         probs_v = self.model(states)
+        # 如果需要使用softmax计算
         if self.apply_softmax:
             probs_v = F.softmax(probs_v, dim=1)
         probs = probs_v.data.cpu().numpy()
+        # 将网络得到的动作概率丢给动作选择器进行选择需要执行的动作
         actions = self.action_selector(probs)
         return np.array(actions), agent_states
 
