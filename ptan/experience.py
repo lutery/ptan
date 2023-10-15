@@ -63,7 +63,7 @@ class ExperienceSource:
         # states: 存储每一次的环境观测值
         # agent_states: 存储游戏网络的代理的初始状态
         # histories: 存储的好像是一个队列，长度为step_ount，存储的应该是历史记录，存储多少步以前的状态等信息 todo
-        # cur_rewards: 存储每次游戏观测的激励，游戏初始化时存储的是0.0
+        # cur_rewards: 存储每轮游戏观测的激励，游戏初始化时存储的是0.0
         # cur_steps: 存储当前观测结果的步数（todo），游戏初始化时存储的是0
         # agent_states： 代理状态 todo 作用
 
