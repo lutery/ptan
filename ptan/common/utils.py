@@ -284,6 +284,8 @@ class TBMeanTracker:
     TensorBoard value tracker: allows to batch fixed amount of historical values and write their mean into TB
 
     Designed and tested with pytorch-tensorboard in mind
+
+    TensorBoard值跟踪器，用来记录训练过程中的状态值，特点是仅记录最近的10个状态值
     """
     def __init__(self, writer, batch_size):
         """
@@ -296,6 +298,9 @@ class TBMeanTracker:
         self.batch_size = batch_size
 
     def __enter__(self):
+        '''
+        在with as语法下生效，此时会创建一个字典类型，字典存储的value类型为list
+        '''
         self._batches = collections.defaultdict(list)
         return self
 
@@ -319,12 +324,22 @@ class TBMeanTracker:
             return float(value)
 
     def track(self, param_name, value, iter_index):
+        '''
+        param param_name: 保存的记录表名，相同的名称会记录到同一张表中
+        param value： 记录值（Y轴）
+        param iter_index: 第几轮（X轴）
+        '''
+        
         assert isinstance(param_name, str)
         assert isinstance(iter_index, int)
 
+        # 从batches中读取指定类型的数据集合
+        # 将数据保存到data中
         data = self._batches[param_name]
         data.append(self._as_float(value))
 
+        # 如果数据超过了执行的长度，则将记录的数据写入到tensorboard中，并清空数据
+        # 写入到tensorboard中的记录值是平均值
         if len(data) >= self.batch_size:
             self.writer.add_scalar(param_name, np.mean(data), iter_index)
             data.clear()
@@ -334,8 +349,8 @@ class RewardTracker:
     def __init__(self, writer, min_ts_diff=1.0):
         """
         Constructs RewardTracker
-        :param writer: writer to use for writing stats
-        :param min_ts_diff: minimal time difference to track speed
+        :param writer: writer to use for writing stats,传入SummaryWriter类型，用来跟踪训练中的奖励
+        :param min_ts_diff: minimal time difference to track speed 最小的时间差跟踪速度 todo  作用
         """
         self.writer = writer
         self.min_ts_diff = min_ts_diff
