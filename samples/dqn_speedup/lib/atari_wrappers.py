@@ -1,6 +1,6 @@
 import numpy as np
 from collections import deque
-import gym
+import gymnasium as gym
 from gym import spaces
 import cv2
 

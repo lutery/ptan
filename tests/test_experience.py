@@ -1,7 +1,7 @@
 import numpy as np
 from unittest import TestCase
 
-import gym
+import gymnasium as gym
 from ptan import experience, agent
 
 

@@ -12,7 +12,7 @@ from torch.autograd import Variable
 import ptan
 from ptan.common import runfile
 
-import gym
+import gymnasium as gym
 
 import bokeh
 from bokeh.plotting import figure

@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 
-import gym
+import gymnasium as gym
 
 from ptan.common import runfile, utils, wrappers
 from ptan import experience, agent

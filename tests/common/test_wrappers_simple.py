@@ -1,5 +1,5 @@
 import unittest
-import gym
+import gymnasium as gym
 import numpy as np
 from ptan.common import wrappers_simple
 

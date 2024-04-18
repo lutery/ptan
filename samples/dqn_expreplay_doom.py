@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 
-import gym
+import gymnasium as gym
 from gym.wrappers import SkipWrapper
 from ppaquette_gym_doom.wrappers.action_space import ToDiscrete
 
