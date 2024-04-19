@@ -86,17 +86,16 @@ if __name__ == "__main__":
 
     run = runfile.RunFile(args.runfile)
 
-    cuda_enabled = run.getboolean("defaults", "cuda", fallback=False)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     env = gym.make(run.get("defaults", "env")).env
     if args.monitor:
         env = gym.wrappers.Monitor(env, args.monitor)
 
     # model returns probability of actions
     model = Model(env.action_space.n, env.observation_space.shape[0])
-    if cuda_enabled:
-        model.cuda()
+    model.to(device)
 
-    agent = ptan.agent.PolicyAgent(a3c_actor_wrapper(model), cuda=cuda_enabled)
+    agent = ptan.agent.PolicyAgent(a3c_actor_wrapper(model), device=device)
     exp_source = ptan.experience.ExperienceSource(env=env, agent=agent, steps_count=run.getint("learning", "n_steps"))
 
     optimizer = optim.RMSprop(model.parameters(), lr=run.getfloat("learning", "lr"))
