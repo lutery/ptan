@@ -75,7 +75,7 @@ class ExperienceSource:
         # 这一大段的循环作用是初始化环境，得到初始化结果
         for env in self.pool:
             # 每一次遍历时，重置游戏环境
-            obs = env.reset()
+            obs, obs_info = env.reset()
             # if the environment is vectorized, all it's output is lists of results.
             # 如果支持矢量计算，那么可以将多个环境的输出结果，拼接到矩阵向量中，直接进行计算，效率比单个计算高
             if self.vectorized:
@@ -143,10 +143,10 @@ class ExperienceSource:
                 if self.vectorized:
                     # 这里action_n是一个list，也就是说矢量环境的输入的一个多维
                     # 如果是矢量的环境，则直接执行动作获取下一个状态，激励，是否结束等观测值
-                    next_state_n, r_n, is_done_n, _ = env.step(action_n)
+                    next_state_n, r_n, is_done_n, _, _ = env.step(action_n)
                 else:
                     # 如果不是矢量环境，则需要将动作的第一个动作发送到env中获取相应的观测值（这里之所以是[0]，因为为了和矢量环境统一，即时是一个动作也会以列表的方式存储）
-                    next_state, r, is_done, _ = env.step(action_n[0])
+                    next_state, r, is_done, _, _ = env.step(action_n[0])
                     # 这个操作是为了和矢量环境统一
                     next_state_n, r_n, is_done_n = [next_state], [r], [is_done]
                 
@@ -193,7 +193,7 @@ class ExperienceSource:
                         cur_rewards[idx] = 0.0
                         cur_steps[idx] = 0
                         # vectorized envs are reset automatically
-                        states[idx] = env.reset() if not self.vectorized else None
+                        states[idx] = env.reset()[0] if not self.vectorized else None
                         agent_states[idx] = self.agent.initial_state()
                         history.clear()
                         
@@ -338,7 +338,7 @@ class ExperienceSourceRollouts:
 
     def __iter__(self):
         pool_size = len(self.pool)
-        states = [np.array(e.reset()) for e in self.pool]
+        states = [np.array(e.reset()[0]) for e in self.pool]
         mb_states = np.zeros((pool_size, self.steps_count) + states[0].shape, dtype=states[0].dtype)
         mb_rewards = np.zeros((pool_size, self.steps_count), dtype=np.float32)
         mb_values = np.zeros((pool_size, self.steps_count), dtype=np.float32)
@@ -355,11 +355,11 @@ class ExperienceSourceRollouts:
             dones = []
             new_states = []
             for env_idx, (e, action) in enumerate(zip(self.pool, actions)):
-                o, r, done, _ = e.step(action)
+                o, r, done, _, _ = e.step(action)
                 total_rewards[env_idx] += r
                 total_steps[env_idx] += 1
                 if done:
-                    o = e.reset()
+                    o, o_info = e.reset()
                     self.total_rewards.append(total_rewards[env_idx])
                     self.total_steps.append(total_steps[env_idx])
                     total_rewards[env_idx] = 0.0

@@ -109,7 +109,7 @@ if __name__ == "__main__":
         :return: loss variable
         """
         # quite inefficient way, should be reordered to minimize amount of model() calls
-        result = Variable(torch.FloatTensor(1).zero_())
+        result = Variable(torch.FloatTensor(1).zero_()).to(device)
 
         # extra values to monitor
         mon_adv = []
@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
         for exps in batch:
             v = Variable(torch.from_numpy(np.array([exps[0].state, exps[-1].state], dtype=np.float32)))
-            policy_s, value_s = model(v)
+            policy_s, value_s = model(v.to(device))
             t_policy_s = policy_s[0] + 1e-6     # prevent log(0)
             t_value_s = value_s[0]
             t_value_last_s = value_s[1]
@@ -141,8 +141,8 @@ if __name__ == "__main__":
             # monitor stuff
             mon_adv.append(advantage)
             mon_val_loss.append(loss_value.data.cpu().numpy()[0])
-            mon_pol_loss.append(loss_policy.data.cpu().numpy()[0])
-            mon_ent_loss.append(loss_entropy.data.cpu().numpy()[0])
+            mon_pol_loss.append(loss_policy.data.cpu().item())
+            mon_ent_loss.append(loss_entropy.data.cpu().item())
 
         monitor = {
             'advantage': np.mean(mon_adv),
