@@ -3,7 +3,8 @@
 import numpy as np
 from collections import deque
 import gymnasium as gym
-from gym import spaces
+from gymnasium import spaces
+from typing import TYPE_CHECKING, Any, Generic, SupportsFloat, TypeVar
 import cv2
 
 
@@ -23,9 +24,9 @@ class NoopResetEnv(gym.Wrapper):
     def step(self, action):
         return self.env.step(action)
 
-    def reset(self):
+    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None):
         """ Do no-op action for a number of steps in [1, noop_max]."""
-        self.env.reset()
+        self.env.reset(seed=seed, options=options)
         # 选择无操作执行动作的次数
         if self.override_num_noops is not None:
             # 固定值
@@ -35,12 +36,13 @@ class NoopResetEnv(gym.Wrapper):
             noops = np.random.randint(1, self.noop_max + 1)
         assert noops > 0
         obs = None
+        info = {}
         # 无操作执行动作有可能游戏会结束，但这里检测到之后，会继续调用reset
         for _ in range(noops):
-            obs, _, done, _ = self.env.step(0)
+            obs, _, done, _, _ = self.env.step(0)
             if done:
-                obs = self.env.reset()
-        return obs
+                obs, info = self.env.reset(seed=seed, options=options)
+        return obs, info
 
 
 class FireResetEnv(gym.Wrapper):
@@ -54,18 +56,18 @@ class FireResetEnv(gym.Wrapper):
     def step(self, action):
         return self.env.step(action)
 
-    def reset(self):
+    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None):
         # 这里之所以尝试重置后尝试各种动作，是因为不知道哪个是FIRE，继续游戏，所以一个一个尝试
         # 如果不小心游戏结束了，则继续重置
         # 假设游戏继续游戏的按钮在前3
-        self.env.reset()
-        obs, _, done, _ = self.env.step(1)
+        self.env.reset(seed=seed, options=options)
+        obs, _, done, _, info = self.env.step(1)
         if done:
-            self.env.reset()
-        obs, _, done, _ = self.env.step(2)
+            self.env.reset(seed=seed, options=options)
+        obs, _, done, _, info = self.env.step(2)
         if done:
-            self.env.reset()
-        return obs
+            self.env.reset(seed=seed, options=options)
+        return obs, info
 
 
 class EpisodicLifeEnv(gym.Wrapper):
@@ -89,7 +91,7 @@ class EpisodicLifeEnv(gym.Wrapper):
 
     def step(self, action):
         # 指定动作
-        obs, reward, done, info = self.env.step(action)
+        obs, reward, done, truncated, info = self.env.step(action)
         # 记录动作的结果，如果游戏具备多条生命，就算损失了一条生命，这里的done依旧是false
         self.was_real_done = done
         # check current lives, make loss of life terminal,
@@ -105,25 +107,25 @@ class EpisodicLifeEnv(gym.Wrapper):
             done = True
         # 保存生命数
         self.lives = lives
-        return obs, reward, done, info
+        return obs, reward, done, truncated, info
 
-    def reset(self):
+    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None):
         """Reset only when lives are exhausted.
         This way all states are still reachable even though lives are episodic,
         and the learner need not know about any of this behind-the-scenes.
         """
         # 如果游戏真的，则直接调用环境的reset方法
         if self.was_real_done:
-            obs = self.env.reset()
+            obs, info = self.env.reset(seed=seed, options=options)
             self.was_real_reset = True
         else:
             # no-op step to advance from terminal/lost life state
             # 如果游戏没有结束，则不执行任何动作，模拟重置
-            obs, _, _, _ = self.env.step(0)
+            obs, _, _, _, info = self.env.step(0)
             self.was_real_reset = False
         self.lives = self.env.unwrapped.ale.lives()
         # 返回游戏状态
-        return obs
+        return obs, info
 
 
 class MaxAndSkipEnv(gym.Wrapper):
@@ -142,15 +144,16 @@ class MaxAndSkipEnv(gym.Wrapper):
     def step(self, action):
         total_reward = 0.0
         done = None
+        truncated = None
         # 重复执行相同的动作skip次
         for _ in range(self._skip):
-            obs, reward, done, info = self.env.step(action)
+            obs, reward, done, truncated, info = self.env.step(action)
             # 存储最近的maxLen次观测值
             self._obs_buffer.append(obs)
             # 累计总奖励
             total_reward += reward
             if done:
-                如果游戏结束则跳出循环
+                #如果游戏结束则跳出循环
                 break
 
         # 将多次观测到的游戏环境组合成一次观测值
@@ -158,15 +161,15 @@ class MaxAndSkipEnv(gym.Wrapper):
         # 使用最大池化技术（通过np.max）来合并_obs_buffer中的最后两帧。这有助于解决Atari游戏的某些对象可能在连续的帧中闪烁的问题
         max_frame = np.max(np.stack(self._obs_buffer), axis=0)
 
-        return max_frame, total_reward, done, info
+        return max_frame, total_reward, done, truncated, info
 
-    def reset(self):
+    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None):
         """Clear past frame buffer and init. to first obs. from inner env."""
         # 重置，清空缓存
         self._obs_buffer.clear()
-        obs = self.env.reset()
+        obs, info = self.env.reset(seed=seed, options=options)
         self._obs_buffer.append(obs)
-        return obs
+        return obs, info
 
 
 class ProcessFrame84(gym.ObservationWrapper):
@@ -254,18 +257,18 @@ class FrameStack(gym.Wrapper):
         # 因为k帧进行链接，所以观察空间的shape就变成了(shp[0]*k, shp[1], shp[2])
         self.observation_space = spaces.Box(low=0, high=255, shape=(shp[0]*k, shp[1], shp[2]), dtype=np.float32)
 
-    def reset(self):
+    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None):
         # 在重置的时候，因为只有一帧，所以进行这一帧复制K份进行存储
         # 在通过get_ob将这K帧组合后返回
-        ob = self.env.reset()
+        ob, info = self.env.reset(seed=seed, options=options)
         for _ in range(self.k):
             self.frames.append(ob)
-        return self._get_ob()
+        return self._get_ob(), info
 
     def step(self, action):
-        ob, reward, done, info = self.env.step(action)
+        ob, reward, done, truncated, info = self.env.step(action)
         self.frames.append(ob)
-        return self._get_ob(), reward, done, info
+        return self._get_ob(), reward, done, truncated, info
 
     def _get_ob(self):
         assert len(self.frames) == self.k
