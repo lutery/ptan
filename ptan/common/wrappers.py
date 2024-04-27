@@ -300,6 +300,7 @@ class ImageToPyTorch(gym.ObservationWrapper):
 def wrap_dqn(env, stack_frames=4, episodic_life=True, reward_clipping=True):
     """
     Apply a common set of wrappers for Atari games.
+    该方法是针对观察数据是图像的游戏需要使用这个方法进行包装
     扩展dqn环境
     param env:
     param stack_frames:
