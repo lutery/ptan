@@ -143,10 +143,12 @@ class ExperienceSource:
                 if self.vectorized:
                     # 这里action_n是一个list，也就是说矢量环境的输入的一个多维
                     # 如果是矢量的环境，则直接执行动作获取下一个状态，激励，是否结束等观测值
-                    next_state_n, r_n, is_done_n, _, _ = env.step(action_n)
+                    next_state_n, r_n, is_done_n, truncated, _ = env.step(action_n)
+                    is_done_n = is_done_n or truncated
                 else:
                     # 如果不是矢量环境，则需要将动作的第一个动作发送到env中获取相应的观测值（这里之所以是[0]，因为为了和矢量环境统一，即时是一个动作也会以列表的方式存储）
-                    next_state, r, is_done, _, _ = env.step(action_n[0])
+                    next_state, r, is_done, truncated, _ = env.step(action_n[0])
+                    is_done = is_done or truncated
                     # 这个操作是为了和矢量环境统一
                     next_state_n, r_n, is_done_n = [next_state], [r], [is_done]
                 
@@ -355,7 +357,8 @@ class ExperienceSourceRollouts:
             dones = []
             new_states = []
             for env_idx, (e, action) in enumerate(zip(self.pool, actions)):
-                o, r, done, _, _ = e.step(action)
+                o, r, done, truncated, _ = e.step(action)
+                done = done or truncated
                 total_rewards[env_idx] += r
                 total_steps[env_idx] += 1
                 if done:
