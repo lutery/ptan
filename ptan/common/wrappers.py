@@ -114,7 +114,7 @@ class EpisodicLifeEnv(gym.Wrapper):
         This way all states are still reachable even though lives are episodic,
         and the learner need not know about any of this behind-the-scenes.
         """
-        # 如果游戏真的，则直接调用环境的reset方法
+        # 如果游戏真的结束，则直接调用环境的reset方法
         if self.was_real_done:
             obs, info = self.env.reset(seed=seed, options=options)
             self.was_real_reset = True
@@ -300,7 +300,11 @@ class ImageToPyTorch(gym.ObservationWrapper):
 def wrap_dqn(env, stack_frames=4, episodic_life=True, reward_clipping=True):
     """
     Apply a common set of wrappers for Atari games.
-    该方法是针对观察数据是图像的游戏需要使用这个方法进行包装
+    该方法是针对观察数据是连续帧的游戏需要使用这个方法进行包装
+    对于不是NoFrameskip的游戏，gym会进行一些跳帧的操作
+    todo 代码中为什么不跳帧的游戏需要使用这个方法包装
+    经过查看代码后，发现和帧数有关系的包装应该是MaxAndSkipEnv、FrameStack
+    其余的包装应该只是针对特定类型的游戏进行额外的处理，感觉跳帧游戏也可以用，下次试试
     扩展dqn环境
     param env:
     param stack_frames:
