@@ -313,7 +313,7 @@ def wrap_dqn(env, stack_frames=4, episodic_life=True, reward_clipping=True):
     """
     assert 'NoFrameskip' in env.spec.id
     if episodic_life:
-        # 将多条生命的游戏模拟成单条生命
+        # 将多条生命的游戏模拟成单条生命ActorCriticAgent
         env = EpisodicLifeEnv(env)
     # 增强初始化
     env = NoopResetEnv(env, noop_max=30)

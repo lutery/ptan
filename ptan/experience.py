@@ -65,7 +65,8 @@ class ExperienceSource:
         # histories: 存储的好像是一个队列，长度为step_ount，存储的应该是历史记录，存储多少步以前的状态等信息 todo
         # cur_rewards: 存储每轮游戏观测的激励，游戏初始化时存储的是0.0
         # cur_steps: 存储当前观测结果的步数（todo），游戏初始化时存储的是0
-        # agent_states： 代理状态 todo 作用
+        # agent_states： 代理状态, 作用1：表示当前游戏主体所处状态的评价值（Q值） todo 作用
+        # 看代码后，发现这个agnet states的状态只有在ExperienceSourceRollouts中才有实际的作用
 
         states, agent_states, histories, cur_rewards, cur_steps = [], [], [], [], []
         # 存储每次环境观测值的长度（因为矢量的环境其返回的结果值是一个不定长度的列表）
@@ -261,6 +262,10 @@ class ExperienceSourceFirstLast(ExperienceSource):
     # todo steps_delta的作用
     """
     def __init__(self, env, agent, gamma, steps_count=1, steps_delta=1, vectorized=False):
+        '''
+        params steps_count: 这里的steps_count主要用于n步dqn的计算，提取最后一步的记录反馈和状态，所以虽然记录了step_count步，但是实际上遍历
+         返回的还是仅当作执行一步
+        '''
         # 判断参数类型、初始化父类、存储到成员变量
         assert isinstance(gamma, float)
         # 这里+1是因为，实际上在采样时，每次__iter__都只是获取当前执行完动作后当前的环境状态，而不知道下一个状态，所以需要+1，使得__iter__每次都能够返回2个采样，而
@@ -296,11 +301,27 @@ class ExperienceSourceFirstLast(ExperienceSource):
 
 
 def discount_with_dones(rewards, dones, gamma):
+    '''
+    根据传入的收集数据，计算折扣奖励类Q值，有点像PPO算法，也是累计未来的奖励到现在，用来预估一个很长的游戏轨迹最终会到哪一步
+
+    param rewards: 传入游戏环境反馈的奖励
+    param dones: 传入游戏是否结束的标识
+    param gamma: 传入折扣因子
+
+    return：返回计算得到的每步Q值
+    '''
+
     discounted = []
     r = 0
+    # 遍历奖励和结束标识
+    # 计算累积折扣奖励，而这里的rewards[::-1], dones[::-1]遍历顺序是逆向的，因为是-1
     for reward, done in zip(rewards[::-1], dones[::-1]):
+        # 根据获取到的奖励+上未来奖励（因为是逆向遍历）的折扣值，所以如果游戏没有结束，那么r会一直累计（有点像是计算Q值）
+        # 但是如果遇到了游戏结束，那么就将重新开始计算奖励，不考虑未来的奖励
         r = reward + gamma*r*(1.-done)
         discounted.append(r)
+
+    # 游戏累计的时候是逆向的，所以这里就再逆向一次，转换为正向的
     return discounted[::-1]
 
 
@@ -308,6 +329,7 @@ class ExperienceSourceRollouts:
     """
     N-step rollout experience source following A3C rollouts scheme. Have to be used with agent,
     keeping the value in its state (for example, agent.ActorCriticAgent).
+    todo 我看讲解都是说是具备N步展开的经验池方法，但是这里的N步和其他的有什么区别吗？因为其他的也有steps_count参数
 
     Yields batches of num_envs * n_steps samples with the following arrays:
     1. observations
@@ -320,7 +342,9 @@ class ExperienceSourceRollouts:
         Constructs the rollout experience source
         :param env: environment or list of environments to be used
         :param agent: callable to convert batch of states into actions
-        :param steps_count: how many steps to perform rollouts
+        :param steps_count: 需要收集记录的游戏步数，并且不进行类似N步DQN的合并奖励操作，而是类似ppo一样直接返回连续的游戏轨迹
+         这里就是和ExperienceSourceFirstLast的区别，这里的steps_count是指定的游戏步数，而不是n步dqn的计算
+         todo 什么场景下使用这个方法
         """
         assert isinstance(env, (gym.Env, list, tuple))
         assert isinstance(agent, BaseAgent)
@@ -340,23 +364,27 @@ class ExperienceSourceRollouts:
 
     def __iter__(self):
         pool_size = len(self.pool)
-        states = [np.array(e.reset()[0]) for e in self.pool]
-        mb_states = np.zeros((pool_size, self.steps_count) + states[0].shape, dtype=states[0].dtype)
-        mb_rewards = np.zeros((pool_size, self.steps_count), dtype=np.float32)
-        mb_values = np.zeros((pool_size, self.steps_count), dtype=np.float32)
-        mb_actions = np.zeros((pool_size, self.steps_count), dtype=np.int64)
-        mb_dones = np.zeros((pool_size, self.steps_count), dtype=np.bool)
-        total_rewards = [0.0] * pool_size
-        total_steps = [0] * pool_size
-        agent_states = None
+        states = [np.array(e.reset()[0]) for e in self.pool] # states 是存储游戏环境的观测值
+        mb_states = np.zeros((pool_size, self.steps_count) + states[0].shape, dtype=states[0].dtype) # 存储执行动作前的游戏状态
+        mb_rewards = np.zeros((pool_size, self.steps_count), dtype=np.float32) # 存储执行动作后的激励
+        mb_values = np.zeros((pool_size, self.steps_count), dtype=np.float32) # 存储执行动作后的Q值
+        mb_actions = np.zeros((pool_size, self.steps_count), dtype=np.int64) # 存储执行的动作
+        mb_dones = np.zeros((pool_size, self.steps_count), dtype=np.bool) # 存储执行动作后游戏是否结束
+        total_rewards = [0.0] * pool_size # 统计每个游戏环境的总激励（如果遇到游戏结束，则设置为0）
+        total_steps = [0] * pool_size # 统计每个游戏执行到结束的总步数（如果遇到游戏结束，则设置为0）
+        agent_states = None # 一开始代理状态为空（是Q值，也就是基于当前的状态预测下一个状态所能达到的最大Q值）
         step_idx = 0
 
         while True:
             actions, agent_states = self.agent(states, agent_states)
-            rewards = []
-            dones = []
-            new_states = []
+            rewards = []  # 存储执行动作后得到的奖励
+            dones = [] # 存储执行动作后游戏是否结束
+            new_states = [] # 存储执行动作后的游戏状态
             for env_idx, (e, action) in enumerate(zip(self.pool, actions)):
+                '''
+                遍历所有的游戏环境，执行动作，获取下一个状态，激励，是否结束
+                这里应该只是执行一步
+                '''
                 o, r, done, truncated, _ = e.step(action)
                 done = done or truncated
                 total_rewards[env_idx] += r
@@ -372,17 +400,24 @@ class ExperienceSourceRollouts:
                 rewards.append(r)
             # we need an extra step to get values approximation for rollouts
             if step_idx == self.steps_count:
+                # 如果游戏执行达到指定的步数，则遍历收集到的奖励
                 # calculate rollout rewards
                 for env_idx, (env_rewards, env_dones, last_value) in enumerate(zip(mb_rewards, mb_dones, agent_states)):
                     env_rewards = env_rewards.tolist()
                     env_dones = env_dones.tolist()
                     if not env_dones[-1]:
+                        # 在所有数据的尾部填充上已经得到的下一个状态的Q值，并将其结束的标识设置为False
                         env_rewards = discount_with_dones(env_rewards + [last_value], env_dones + [False], self.gamma)[:-1]
                     else:
+                        # 处理达到步数后游戏结束的情况
                         env_rewards = discount_with_dones(env_rewards, env_dones, self.gamma)
+                    # 根据转换后，mb_rewards已经被转换为了一种类似Q值的考虑到未来奖励的累计值
                     mb_rewards[env_idx] = env_rewards
+                # 这里是将收集到的游戏状态进行展平操作，返回给外部，因为原始的数据第一维是环境的数量，第二维度是步数，第三维度以上才是收集到的数据
+                # 为了更好的训练，需要展平，且此时也不需要游戏的状态了
                 yield mb_states.reshape((-1,) + mb_states.shape[2:]), mb_rewards.flatten(), mb_actions.flatten(), mb_values.flatten()
                 step_idx = 0
+
             mb_states[:, step_idx] = states
             mb_rewards[:, step_idx] = rewards
             mb_values[:, step_idx] = agent_states

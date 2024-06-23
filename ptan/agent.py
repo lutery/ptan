@@ -143,7 +143,7 @@ class PolicyAgent(BaseAgent):
     def __call__(self, states, agent_states=None):
         """
         Return actions from given list of states
-        :param states: list of states
+        :param states: list of states 在本代理器中，agent_states没有参与计算，仅仅是保证其维度和states一样
         :return: list of actions
         """
         if agent_states is None:
@@ -171,6 +171,13 @@ class ActorCriticAgent(BaseAgent):
     """
     def __init__(self, model, action_selector=actions.ProbabilityActionSelector(), device="cpu",
                  apply_softmax=False, preprocessor=default_states_preprocessor):
+        '''
+        param model: 策略网络
+        param action_selector: 动作选择器，默认值是根据预测的动作概率分布选择动作
+        param device: 计算设备
+        param apply_softmax: 是否使用softmax计算动作概率
+        param preprocessor: 预处理器，将状态转换为float32类型
+        '''
         self.model = model
         self.action_selector = action_selector
         self.device = device
@@ -180,15 +187,18 @@ class ActorCriticAgent(BaseAgent):
     @torch.no_grad()
     def __call__(self, states, agent_states=None):
         """
+        看了代码，其和PolicyAgent不同的地方就是对于状体的处理
         Return actions from given list of states
-        :param states: list of states
+        :param states: list of states 返回此时环境状态的评价值也是游戏主体本身所处的状态的评价值
         :return: list of actions
         """
+        # 将数据进行预处理，不改变数据本身，进转换为tensor
         if self.preprocessor is not None:
             states = self.preprocessor(states)
             if torch.is_tensor(states):
                 states = states.to(self.device)
         probs_v, values_v = self.model(states)
+        # 得到动作概率，选择执行的动作
         if self.apply_softmax:
             probs_v = F.softmax(probs_v, dim=1)
         probs = probs_v.data.cpu().numpy()
