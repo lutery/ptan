@@ -369,7 +369,7 @@ class ExperienceSourceRollouts:
         mb_rewards = np.zeros((pool_size, self.steps_count), dtype=np.float32) # 存储执行动作后的激励
         mb_values = np.zeros((pool_size, self.steps_count), dtype=np.float32) # 存储执行动作后的Q值
         mb_actions = np.zeros((pool_size, self.steps_count), dtype=np.int64) # 存储执行的动作
-        mb_dones = np.zeros((pool_size, self.steps_count), dtype=np.bool) # 存储执行动作后游戏是否结束
+        mb_dones = np.zeros((pool_size, self.steps_count), dtype=np.bool_) # 存储执行动作后游戏是否结束
         total_rewards = [0.0] * pool_size # 统计每个游戏环境的总激励（如果遇到游戏结束，则设置为0）
         total_steps = [0] * pool_size # 统计每个游戏执行到结束的总步数（如果遇到游戏结束，则设置为0）
         agent_states = None # 一开始代理状态为空（是Q值，也就是基于当前的状态预测下一个状态所能达到的最大Q值）
