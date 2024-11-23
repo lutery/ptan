@@ -732,3 +732,214 @@ class QLearningPreprocessor(BatchPreprocessor):
             q0[idx][act] = total_reward
 
         return state_0, q0, td
+
+
+ExperienceNextStates = namedtuple('ExperienceNextStates', ['state', 'action', 'reward', 'done', 'next_state'])
+
+
+class ExperienceSourceNextStates:
+    """
+    Simple n-step experience source using single or multiple environments
+    简单的存储n步的经验采集样本，用于单个或者多个环境中
+
+    Every experience contains n list of ExperienceNextStates entries
+    每个经验样本集都包含n步的经验
+    """
+
+    def __init__(self, env, agent, steps_count=2, steps_delta=1, vectorized=False):
+        """
+        Create simple experience source
+        :param env: environment or list of environments to be used 环境信息或者环境信息列表
+        :param agent: callable to convert batch of states into actions to take 代理信息
+        :param steps_count: count of steps to track for every experience chain 需要追溯多少步以前的记录
+        :param steps_delta: how many steps to do between experience items todo
+        :param vectorized: support of vectorized envs from OpenAI universe
+        """
+        # 判断经验传入的参数类型是否正确
+        # 并存储到成员变量
+        assert isinstance(env, (gym.Env, list, tuple))
+        assert isinstance(agent, BaseAgent)
+        assert isinstance(steps_count, int)
+        assert steps_count >= 1
+        assert isinstance(vectorized, bool)
+        # self.pool: 存储游戏环境
+        if isinstance(env, (list, tuple)):
+            self.pool = env
+        else:
+            self.pool = [env]
+        self.agent = agent
+        self.steps_count = steps_count
+        self.steps_delta = steps_delta
+        self.total_rewards = []
+        self.total_steps = []
+        self.vectorized = vectorized
+
+    def __iter__(self):
+        # 这个接口就是运行环境并获取观测值，填充经验缓冲区的地方
+        # 调用这个接口后，每次遍历都会使用神经网络预测当前状态下的
+        # 执行动作，使用yield实现
+        # 如果游戏一旦结束，将会把最后一次的游戏状态存储到total_rewards（包括执行的动作，奖励值，游戏的环境状态）
+        #
+        # return:
+        #
+
+        # states: 存储每一次的环境观测值
+        # agent_states: 存储游戏网络的代理的初始状态
+        # histories: 存储的好像是一个队列，长度为step_ount，存储的应该是历史记录，存储多少步以前的状态等信息 todo
+        # cur_rewards: 存储每轮游戏观测的激励，游戏初始化时存储的是0.0
+        # cur_steps: 存储当前观测结果的步数（todo），游戏初始化时存储的是0
+        # agent_states： 代理状态, 作用1：表示当前游戏主体所处状态的评价值（Q值） todo 作用
+        # 看代码后，发现这个agnet states的状态只有在ExperienceSourceRollouts中才有实际的作用
+
+        states, agent_states, histories, cur_rewards, cur_steps = [], [], [], [], []
+        # 存储每次环境观测值的长度（因为矢量的环境其返回的结果值是一个不定长度的列表）
+        # 每个索引对应着states中对应索引的长度
+        env_lens = []
+        # 遍历每一个游戏环境
+        # 这一大段的循环作用是初始化环境，得到初始化结果
+        for env in self.pool:
+            # 每一次遍历时，重置游戏环境
+            obs, obs_info = env.reset()
+            # if the environment is vectorized, all it's output is lists of results.
+            # 如果支持矢量计算，那么可以将多个环境的输出结果，拼接到矩阵向量中，直接进行计算，效率比单个计算高
+            if self.vectorized:
+                # 矢量环境
+                # 获取单词观察结果的向量长度
+                obs_len = len(obs)
+                # 将当前状态结果列表（应该是包含了环境状态，激励，动作，是否结束等信息）存储在states
+                states.extend(obs)
+            else:
+                # 非矢量环境下，其观测的结果就是一个标量，简单说就是一个动作值，所以
+                # 长度是1
+                obs_len = 1
+                # 将结果存储在status中
+                states.append(obs)
+            env_lens.append(obs_len)
+
+            # 遍历本次环境观测的结果
+            for _ in range(obs_len):
+                histories.append(deque(maxlen=self.steps_count))  # 创建对应环境观测结果历史缓存队列
+                cur_rewards.append(0.0)  # 存储最初是状态下的激励，为0
+                cur_steps.append(0)  # 存储当前行走的部署，为0
+                agent_states.append(self.agent.initial_state())  # 存储代理状态，reset环境时，代理状态是初始状态
+
+        # 遍历索引
+        # 从里这开始，应该就是尝试运行游戏了
+        iter_idx = 0
+        while True:
+            actions = [None] * len(states)  # todo
+            states_input = []
+            states_indices = []
+            # 遍历每一次的存储的观测状态
+            # 对于非矢量环境来说，idx仅仅对应一个当前状态，但是对于矢量环境来说，idx对应当前获取的每个一观测值的索引
+            # 这一个大循环的作用应该是，根据环境执行得到执行的动作结果
+            # todo 有一个问题，矢量环境获取的多个观测结果这里怎么分辨
+            for idx, state in enumerate(states):
+                if state is None:
+                    # 如果状态是空的，则使用环境进行随机选择一个动作执行， 另外这里假设的所有的环境都有相同的动作空间，
+                    # 所以这里仅使用0索引环境进行随机动作采样
+                    actions[idx] = self.pool[0].action_space.sample()  # assume that all envs are from the same family
+                else:
+                    # 如果状态非空，则将当前的存储在states环境观测值存储在states_input中
+                    # 并存储当前的索引
+                    states_input.append(state)
+                    states_indices.append(idx)
+            if states_input:
+                # 如果观测的状态列表非空，则将状态输入的神经网络环境代理中，获取将要执行的动作
+                # 而agent_staes根据源码，发现并未做处理
+                states_actions, new_agent_states = self.agent(states_input, agent_states)
+                # 遍历每一个状态所要执行的动作
+                for idx, action in enumerate(states_actions):
+                    # 获取当前动作对应的状态的索引位置，有上面106行的代码可知
+                    g_idx = states_indices[idx]
+                    # 将执行的动作存储在与状态相对应的索引上
+                    actions[g_idx] = action
+                    # 代理状态（todo 作用）
+                    agent_states[g_idx] = new_agent_states[idx]
+            # 将动作按照原先存储的每个环境得到的观测结果长度，按照环境数组进行重新分割分组
+            grouped_actions = _group_list(actions, env_lens)
+
+            # 因为存在一个大循环，存储每个环境的起始索引位置
+            global_ofs = 0
+            # 遍历每一个环境
+            # 这一个大循环是将上一个循环中得到的执行动作应用到实际的环境中
+            for env_idx, (env, action_n) in enumerate(zip(self.pool, grouped_actions)):
+                if self.vectorized:
+                    # 这里action_n是一个list，也就是说矢量环境的输入的一个多维
+                    # 如果是矢量的环境，则直接执行动作获取下一个状态，激励，是否结束等观测值
+                    next_state_n, r_n, is_done_n, truncated, _ = env.step(action_n)
+                    is_done_n = is_done_n or truncated
+                else:
+                    # 如果不是矢量环境，则需要将动作的第一个动作发送到env中获取相应的观测值（这里之所以是[0]，因为为了和矢量环境统一，即时是一个动作也会以列表的方式存储）
+                    next_state, r, is_done, truncated, _ = env.step(action_n[0])
+                    is_done = is_done or truncated
+                    # 这个操作是为了和矢量环境统一
+                    next_state_n, r_n, is_done_n = [next_state], [r], [is_done]
+
+                # 遍历每一次的动作所得到的下一个状态、激励、是否结束
+                for ofs, (action, next_state, r, is_done) in enumerate(zip(action_n, next_state_n, r_n, is_done_n)):
+                    # 获取当前缓存的索引位置
+                    idx = global_ofs + ofs
+                    # 获取初始环境的状态
+                    # 因为action_n存储的就是每一个状态下所执行的动作，所以这里直接使用idx提取对应的状态
+                    state = states[idx]
+                    # 获取一个历史队列，此时队列为空
+                    history = histories[idx]
+
+                    # 这里利用的idx来区分每一个状态执行的动作所对应的激励值
+                    # 将获取的激励值存储在缓存中
+                    cur_rewards[idx] += r
+                    # 将当前状态以及执行的动作，执行的步骤次数存在起来
+                    cur_steps[idx] += 1
+                    # 如果状态非空，则（当前状态，所执行的动作对应的历史缓存队列）将当前状态存储在history中
+                    # 所以一个样本可能就是这样对应一个队列数据
+                    if state is not None:
+                        history.append(ExperienceNextStates(state=state, action=action, reward=r, done=is_done, next_state=next_state))
+                    # 如果达到了采集的步数并且遍历索引达到了两个经验样本的指定差值，则将样本返回，待外界下一次继续获取时，从这里继续执行
+                    if len(history) == self.steps_count and iter_idx % self.steps_delta == 0:
+                        yield tuple(history)
+                    # 更新states，表示当前动作执行后状态的改变
+                    # 将动作设置为动作执行后的下一个状态，因为idx表示当前运行的环境状态的变更
+                    states[idx] = next_state
+                    if is_done:
+                        # 如果游戏结束，如果存储的历史数据小于指定的长度，则直接返回
+                        # in case of very short episode (shorter than our steps count), send gathered history
+                        if 0 < len(history) < self.steps_count:
+                            yield tuple(history)
+                        # generate tail of history
+                        # 弹出最左侧的历史数据，返回给外部获取数据
+                        while len(history) > 1:
+                            history.popleft()
+                            yield tuple(history)
+                        # 将当前状态+动作执行后得到的激励存储在total_rewards队列中
+                        self.total_rewards.append(cur_rewards[idx])
+                        # 这个当前状态+动作执行的次数也存储起来
+                        self.total_steps.append(cur_steps[idx])
+                        # 重置状态
+                        cur_rewards[idx] = 0.0
+                        cur_steps[idx] = 0
+                        # vectorized envs are reset automatically
+                        states[idx] = env.reset()[0] if not self.vectorized else None
+                        agent_states[idx] = self.agent.initial_state()
+                        history.clear()
+
+                # 将起始索引设置为下一个环境的起始位置
+                global_ofs += len(action_n)
+            # 遍历索引+1
+            iter_idx += 1
+
+    def pop_total_rewards(self):
+        """
+        返回所有采集的样本，并清空缓存
+        """
+        r = self.total_rewards
+        if r:
+            self.total_rewards = []
+            self.total_steps = []
+        return r
+
+    def pop_rewards_steps(self):
+        res = list(zip(self.total_rewards, self.total_steps))
+        if res:
+            self.total_rewards, self.total_steps = [], []
+        return res
