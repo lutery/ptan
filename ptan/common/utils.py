@@ -346,7 +346,7 @@ class TBMeanTracker:
 
 
 class RewardTracker:
-    def __init__(self, writer, min_ts_diff=1.0):
+    def __init__(self, writer, min_ts_diff=1.0, info_callback=None):
         """
         Constructs RewardTracker
         :param writer: writer to use for writing stats,传入SummaryWriter类型，用来跟踪训练中的奖励
@@ -354,6 +354,7 @@ class RewardTracker:
         """
         self.writer = writer
         self.min_ts_diff = min_ts_diff
+        self.info_callback = info_callback
 
     def __enter__(self):
         '''
@@ -383,6 +384,10 @@ class RewardTracker:
             print("%d: done %d episodes, mean reward %.3f, speed %.2f f/s%s" % (
                 frame, len(self.total_rewards), mean_reward, speed, epsilon_str
             )) # 打印帧数、记录的总奖励个数，最新100次游戏的平均奖励，游戏进行的速度，todo epsilon的作用
+            if self.info_callback:
+                self.info_callback("%d: done %d episodes, mean reward %.3f, speed %.2f f/s%s" % (
+                frame, len(self.total_rewards), mean_reward, speed, epsilon_str
+            ))
             sys.stdout.flush()
             self.writer.add_scalar("speed", speed, frame) # 记录速度
         if epsilon is not None:
