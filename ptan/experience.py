@@ -943,3 +943,101 @@ class ExperienceSourceNextStates:
         if res:
             self.total_rewards, self.total_steps = [], []
         return res
+    
+
+class ExperienceSourceDirect:
+    def __init__(self, env, agent, gamma, steps_count=5):
+        assert isinstance(env, (gym.Env, list, tuple))
+        assert isinstance(agent, BaseAgent)
+        assert isinstance(gamma, float)
+        assert isinstance(steps_count, int)
+        assert steps_count >= 1
+
+        if isinstance(env, (list, tuple)):
+            self.pool = env
+        else:
+            self.pool = [env]
+        self.agent = agent
+        self.gamma = gamma
+        self.steps_count = steps_count
+        self.total_rewards = []
+        self.total_steps = []
+
+    def __iter__(self):
+        pool_size = len(self.pool)
+        states = [np.array(e.reset()[0]) for e in self.pool] # states 是存储游戏环境的观测值
+        mb_states = np.zeros((pool_size, self.steps_count) + states[0].shape, dtype=states[0].dtype) # 存储执行动作前的游戏状态
+        mb_rewards = np.zeros((pool_size, self.steps_count), dtype=np.float32) # 存储执行动作后的激励
+        mb_values = np.zeros((pool_size, self.steps_count), dtype=np.float32) # 存储执行动作后的Q值
+        mb_actions = np.zeros((pool_size, self.steps_count), dtype=np.int64) # 存储执行的动作
+        mb_dones = np.zeros((pool_size, self.steps_count), dtype=np.bool_) # 存储执行动作后游戏是否结束
+        mb_agent_states = [[] * self.steps_count for _ in range(pool_size)] # 存储每个游戏环境的代理状态
+        total_rewards = [0.0] * pool_size # 统计每个游戏环境的总激励（如果遇到游戏结束，则设置为0）
+        total_steps = [0] * pool_size # 统计每个游戏执行到结束的总步数（如果遇到游戏结束，则设置为0）
+        agent_states = self.agent.initial_state() # 初始化代理状态
+        step_idx = 0
+
+        while True:
+            actions, agent_states = self.agent(states, agent_states)
+            rewards = []  # 存储执行动作后得到的奖励
+            dones = [] # 存储执行动作后游戏是否结束
+            new_states = [] # 存储执行动作后的游戏状态
+            for env_idx, (e, action) in enumerate(zip(self.pool, actions)):
+                '''
+                遍历所有的游戏环境，执行动作，获取下一个状态，激励，是否结束
+                这里应该只是执行一步
+                '''
+                o, r, done, truncated, _ = e.step(action)
+                done = done or truncated
+                total_rewards[env_idx] += r
+                total_steps[env_idx] += 1
+                if done:
+                    o, o_info = e.reset()
+                    self.total_rewards.append(total_rewards[env_idx])
+                    self.total_steps.append(total_steps[env_idx])
+                    total_rewards[env_idx] = 0.0
+                    total_steps[env_idx] = 0
+                new_states.append(np.array(o))
+                dones.append(done)
+                rewards.append(r)
+                mb_agent_states[env_idx].append(agent_states[env_idx])
+            # we need an extra step to get values approximation for rollouts
+            if step_idx == self.steps_count:
+                # 如果游戏执行达到指定的步数，则遍历收集到的奖励
+                # calculate rollout rewards
+                for env_idx, (env_rewards, env_dones, last_value) in enumerate(zip(mb_rewards, mb_dones, agent_states)):
+                    env_rewards = env_rewards.tolist()
+                    env_dones = env_dones.tolist()
+                    if not env_dones[-1]:
+                        # 在所有数据的尾部填充上已经得到的下一个状态的Q值，并将其结束的标识设置为False
+                        env_rewards = discount_with_dones(env_rewards + [last_value], env_dones + [False], self.gamma)[:-1]
+                    else:
+                        # 处理达到步数后游戏结束的情况
+                        env_rewards = discount_with_dones(env_rewards, env_dones, self.gamma)
+                    # 根据转换后，mb_rewards已经被转换为了一种类似Q值的考虑到未来奖励的累计值
+                    mb_rewards[env_idx] = env_rewards
+                # 这里是将收集到的游戏状态进行展平操作，返回给外部，因为原始的数据第一维是环境的数量，第二维度是步数，第三维度以上才是收集到的数据
+                # 为了更好的训练，需要展平，且此时也不需要游戏的状态了
+                yield mb_states.reshape((-1,) + mb_states.shape[2:]), mb_rewards.flatten(), mb_actions.flatten(), mb_values.flatten()
+                step_idx = 0
+
+            mb_states[:, step_idx] = states
+            mb_rewards[:, step_idx] = rewards
+            mb_values[:, step_idx] = agent_states
+            mb_actions[:, step_idx] = actions
+            mb_dones[:, step_idx] = dones
+            step_idx += 1
+            states = new_states
+
+    def pop_total_rewards(self):
+        r = self.total_rewards
+        if r:
+            self.total_rewards = []
+            self.total_steps = []
+        return r
+
+    def pop_rewards_steps(self):
+        res = list(zip(self.total_rewards, self.total_steps))
+        if res:
+            self.total_rewards, self.total_steps = [], []
+        return res
