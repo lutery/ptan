@@ -1,4 +1,7 @@
 
+# 更改记录
+1. pip install -e .安装失败，删除setuptools后再重新执行pip install -e .安装成功
+
 # PTAN
 
 PTAN stands for PyTorch AgentNet -- reimplementation of
