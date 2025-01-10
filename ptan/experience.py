@@ -971,20 +971,21 @@ class A2CExperienceSourceDirect:
         mb_values = np.zeros((pool_size, self.steps_count), dtype=np.float32) # 存储执行动作后的Q值
         mb_actions = np.zeros((pool_size, self.steps_count), dtype=np.int64) # 存储执行的动作
         mb_dones = np.zeros((pool_size, self.steps_count), dtype=np.bool_) # 存储执行动作后游戏是否结束
-        mb_hx = [[] * self.steps_count for _ in range(pool_size)] # 存储每个游戏环境的代理状态
-        mb_cx = [[] * self.steps_count for _ in range(pool_size)] # 存储每个游戏环境的代理状态
         total_rewards = [0.0] * pool_size # 统计每个游戏环境的总激励（如果遇到游戏结束，则设置为0）
         total_steps = [0] * pool_size # 统计每个游戏执行到结束的总步数（如果遇到游戏结束，则设置为0）
         agent_states = self.agent.initial_state() # 初始化代理状态
         step_idx = 0
 
+        mb_hx = np.zeros((self.steps_count,) + agent_states[0].shape, dtype=np.float32)  # 存储每个游戏环境的代理状态
+        mb_cx = np.zeros((self.steps_count,) + agent_states[1].shape, dtype=np.float32)  # 存储每个游戏环境的代理状态
+
+
         while True:
-            mb_hx[:, step_idx], mb_cx[:, step_idx] = agent_states[0], agent_states[1]
             actions, values, new_agent_states = self.agent(states, agent_states)
             rewards = []  # 存储执行动作后得到的奖励
             dones = [] # 存储执行动作后游戏是否结束
             new_states = [] # 存储执行动作后的游戏状态
-            for env_idx, (e, action, hx, cx) in enumerate(zip(self.pool, actions, zip(new_agent_states))):
+            for env_idx, (e, action) in enumerate(zip(self.pool, actions)):
                 '''
                 遍历所有的游戏环境，执行动作，获取下一个状态，激励，是否结束
                 这里应该只是执行一步
@@ -999,9 +1000,7 @@ class A2CExperienceSourceDirect:
                     self.total_steps.append(total_steps[env_idx])
                     total_rewards[env_idx] = 0.0
                     total_steps[env_idx] = 0
-                    hx = torch.zeros_like(hx)
-                    cx = torch.zeros_like(cx)
-                    new_agent_states[0][env_idx], new_agent_states[1][env_idx] = (hx, cx)
+                    new_agent_states[:, env_idx, :], new_agent_states[:, env_idx, :] = 0, 0
                 new_states.append(np.array(o))
                 dones.append(done)
                 rewards.append(r)
@@ -1019,17 +1018,19 @@ class A2CExperienceSourceDirect:
                         # 处理达到步数后游戏结束的情况
                         env_rewards = discount_with_dones(env_rewards, env_dones, self.gamma)
                     # 根据转换后，mb_rewards已经被转换为了一种类似Q值的考虑到未来奖励的累计值
-                    mb_rewards[env_idx] = env_rewards
+                    mb_rewards[env_idx] = np.array(env_rewards).flatten()
                 # 这里是将收集到的游戏状态进行展平操作，返回给外部，因为原始的数据第一维是环境的数量，第二维度是步数，第三维度以上才是收集到的数据
                 # 为了更好的训练，需要展平，且此时也不需要游戏的状态了
-                yield mb_states.reshape((-1,) + mb_states.shape[2:]), mb_rewards.flatten(), mb_actions.flatten(), mb_values.flatten(), mb_hx.flatten(), mb_cx.flatten()
+                yield mb_states.reshape((-1,) + mb_states.shape[2:]), mb_rewards.flatten(), mb_actions.flatten(), mb_values.flatten(), np.transpose(mb_hx, (1, 0, 2, 3)).reshape(mb_hx.shape[1], -1, mb_hx.shape[3]), np.transpose(mb_cx, (1, 0, 2, 3)).reshape(mb_cx.shape[1], -1, mb_cx.shape[3])
                 step_idx = 0
 
             mb_states[:, step_idx] = states
             mb_rewards[:, step_idx] = rewards
-            mb_values[:, step_idx] = values
+            mb_values[:, step_idx] = values.squeeze(1)
             mb_actions[:, step_idx] = actions
             mb_dones[:, step_idx] = dones
+            mb_hx[step_idx] = agent_states[0]
+            mb_cx[step_idx] = agent_states[1]
             step_idx += 1
             states = new_states
             agent_states = new_agent_states
