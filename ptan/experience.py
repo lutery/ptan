@@ -1000,7 +1000,7 @@ class A2CExperienceSourceDirect:
                     self.total_steps.append(total_steps[env_idx])
                     total_rewards[env_idx] = 0.0
                     total_steps[env_idx] = 0
-                    new_agent_states[:, env_idx, :], new_agent_states[:, env_idx, :] = 0, 0
+                    new_agent_states[0][:, env_idx, :], new_agent_states[1][:, env_idx, :] = 0, 0
                 new_states.append(np.array(o))
                 dones.append(done)
                 rewards.append(r)
