@@ -544,12 +544,12 @@ class ExperienceSourceFirstLastRAW(ExperienceSourceRAW):
             # 返回的exp经验长度，会根据self.steps的长度不同而不同，这里的self.steps主要用于n步dqn的计算，提取最后一步的记录反馈和状态，如果是对于其他的方法，通常设置为1即可
             # 这个特性主要应用于N步dqn
             # 因为n步dqn的计算，需要利用到最后一个状态值计算q值，得到第n步的q值
-            if exp[-1].is_done and len(exp) <= self.steps:
+            if exp[-1][3] and len(exp) <= self.steps:
                 last_state = None
                 elems = exp
             else:
                 # 获取最后一个经验的状态值
-                last_state = exp[-1].state
+                last_state = exp[-1][0]
                 elems = exp[:-1]
             total_reward = 0.0
             # 根据书中第120页的计算公式，计算bellman中，除了max q值的部分的激励值
@@ -557,10 +557,8 @@ class ExperienceSourceFirstLastRAW(ExperienceSourceRAW):
             total_reward = 0.0
             for e in reversed(elems):
                 total_reward *= self.gamma
-                total_reward += e.reward
-            yield ExperienceFirstLast(state=exp[0].state, action=exp[0].action,
-                                      reward=total_reward, last_state=last_state)
-            yield (exp[0].state, exp[0].action, total_reward, exp[0].is_done, last_state, exp[0].agent_state)
+                total_reward += e[2]
+            yield (exp[0][0], exp[0][1], total_reward, exp[0][3], last_state, exp[0][5])
             
 
 
