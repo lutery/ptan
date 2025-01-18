@@ -86,6 +86,7 @@ class EpisodicLifeEnv(gym.Wrapper):
         self.lives = 0
         # 指示在上一个步骤中游戏是否真正结束
         self.was_real_done = True
+        self.was_real_trunc = True
         # 指示环境是否真正重置
         self.was_real_reset = False
 
@@ -94,6 +95,7 @@ class EpisodicLifeEnv(gym.Wrapper):
         obs, reward, done, truncated, info = self.env.step(action)
         # 记录动作的结果，如果游戏具备多条生命，就算损失了一条生命，这里的done依旧是false
         self.was_real_done = done
+        self.was_real_trunc = truncated
         # check current lives, make loss of life terminal,
         # then update lives to handle bonus lives
         # 获取游戏的剩余生命数
@@ -115,7 +117,7 @@ class EpisodicLifeEnv(gym.Wrapper):
         and the learner need not know about any of this behind-the-scenes.
         """
         # 如果游戏真的结束，则直接调用环境的reset方法
-        if self.was_real_done:
+        if self.was_real_done or self.was_real_trunc:
             obs, info = self.env.reset(seed=seed, options=options)
             self.was_real_reset = True
         else:
@@ -123,6 +125,7 @@ class EpisodicLifeEnv(gym.Wrapper):
             # 如果游戏没有结束，则不执行任何动作，模拟重置
             obs, _, _, _, info = self.env.step(0)
             self.was_real_reset = False
+            self.was_real_trunc = False
         self.lives = self.env.unwrapped.ale.lives()
         # 返回游戏状态
         return obs, info
