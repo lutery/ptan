@@ -558,7 +558,7 @@ class ExperienceSourceFirstLastRAW(ExperienceSourceRAW):
             for e in reversed(elems):
                 total_reward *= self.gamma
                 total_reward += e[2]
-            yield (exp[0][0], exp[0][1], total_reward, exp[0][3], last_state, exp[0][5])
+            yield (exp[0][0], exp[0][1], total_reward, exp[-1][3], last_state, exp[0][5])
             
 
 
