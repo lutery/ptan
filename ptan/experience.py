@@ -730,6 +730,78 @@ class ExperienceSourceBuffer:
             ofs = random.randrange(self.lens[episode] - self.steps_count - 1)
             yield self.buffer[episode][ofs:ofs+self.steps_count]
 
+
+from collections import deque
+# 经验重放缓冲区，主要用于收集训练样本，提取训练样本
+class ExperienceReplayChunkBuffer:
+    def __init__(self, experience_source, buffer_size, bit_depth=32):
+        '''
+        param experience_source: 经验池
+        param buffer_size: 每次提取的样本大小
+        '''
+        
+        assert isinstance(experience_source, (ExperienceSource, type(None)))
+        assert isinstance(buffer_size, int)
+        # 将经验池转换为迭代器
+        self.experience_source_iter = None if experience_source is None else iter(experience_source)
+        self.buffer = []
+        # 重放缓冲区的大小
+        self.capacity = buffer_size
+        # 当前遍历的位置
+        self.pos = 0
+        self.full = False
+        self.steps, self.episodes = 0, 0
+        self.bit_depth = bit_depth
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def __iter__(self):
+        return iter(self.buffer)
+    
+
+    def _sample_idx(self, L):
+        valid_idx = False
+        while True:
+            idx = np.random.randint(0, self.size if self.full else self.idx - L)
+            idxs = np.arange(idx, idx + L) % self.size
+            if self.idx not in idxs[1:]:  # 确保数据不跨越内存索引
+                break
+
+        return idxs
+
+    def sample(self, batch_size, chunk_size):
+        """
+        Get one random batch from experience replay
+        TODO: implement sampling order policy
+        :param batch_size:
+        :return:
+        """
+        if len(self.buffer) <= batch_size:
+            return self.buffer
+        # Warning: replace=False makes random.choice O(n)
+        keys = np.random.choice(len(self.buffer), batch_size, replace=True)
+        return [self.buffer[key] for key in keys]
+
+    def _add(self, sample):
+        if len(self.buffer) < self.capacity:
+            self.buffer.append(sample)
+        else:
+            self.buffer[self.pos] = sample
+        self.pos = (self.pos + 1) % self.capacity
+
+    def populate(self, samples):
+        """
+        Populates samples into the buffer 提取样本到重放缓存区中
+        :param samples: how many samples to populate  从样本池中提取多少个样本到缓冲区
+        
+        算法的原理及利用迭代器根据数量，从经验池中获取数据
+        """
+        for _ in range(samples):
+            entry = next(self.experience_source_iter)
+            self._add(entry)
+
+
 # 经验重放缓冲区，主要用于收集训练样本，提取训练样本
 class ExperienceReplayBuffer:
     def __init__(self, experience_source, buffer_size):
