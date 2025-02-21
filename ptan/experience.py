@@ -777,11 +777,12 @@ class ExperienceReplayChunkBuffer:
         :param batch_size:
         :return:
         """
-        if len(self.buffer) <= batch_size:
+        if len(self.buffer) <= batch_size or len(self.buffer) < chunk_size:
             return self.buffer
+
+        sample_data_list = [self.buffer[self._sample_idx(chunk_size)] for _ in range(batch_size)]
         # Warning: replace=False makes random.choice O(n)
-        keys = np.random.choice(len(self.buffer), batch_size, replace=True)
-        return [self.buffer[key] for key in keys]
+        return sample_data_list
 
     def _add(self, sample):
         if len(self.buffer) < self.capacity:
