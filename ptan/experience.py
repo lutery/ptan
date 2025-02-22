@@ -740,7 +740,6 @@ class ExperienceReplayChunkBuffer:
         param buffer_size: 每次提取的样本大小
         '''
         
-        assert isinstance(experience_source, (ExperienceSource, type(None)))
         assert isinstance(buffer_size, int)
         # 将经验池转换为迭代器
         self.experience_source_iter = None if experience_source is None else iter(experience_source)
@@ -752,6 +751,7 @@ class ExperienceReplayChunkBuffer:
         self.full = False
         self.steps, self.episodes = 0, 0
         self.bit_depth = bit_depth
+        self.size = buffer_size
 
     def __len__(self):
         return len(self.buffer)
@@ -759,13 +759,23 @@ class ExperienceReplayChunkBuffer:
     def __iter__(self):
         return iter(self.buffer)
     
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # 迭代器不能被pickle保存，所以移除它
+        state['experience_source_iter'] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # 加载后需要手动调用 set_exp_source() 恢复经验池
+        self.experience_source_iter = None
+    
 
     def _sample_idx(self, L):
-        valid_idx = False
         while True:
-            idx = np.random.randint(0, self.size if self.full else self.idx - L)
+            idx = np.random.randint(0, self.size if self.full else self.pos - L)
             idxs = np.arange(idx, idx + L) % self.size
-            if self.idx not in idxs[1:]:  # 确保数据不跨越内存索引
+            if self.pos not in idxs[1:]:  # 确保数据不跨越内存索引
                 break
 
         return idxs
@@ -780,7 +790,7 @@ class ExperienceReplayChunkBuffer:
         if len(self.buffer) <= batch_size or len(self.buffer) < chunk_size:
             return self.buffer
 
-        sample_data_list = [self.buffer[self._sample_idx(chunk_size)] for _ in range(batch_size)]
+        sample_data_list = [[self.buffer[i] for i in self._sample_idx(chunk_size).tolist()] for _ in range(batch_size)]
         # Warning: replace=False makes random.choice O(n)
         return sample_data_list
 
@@ -801,6 +811,10 @@ class ExperienceReplayChunkBuffer:
         for _ in range(samples):
             entry = next(self.experience_source_iter)
             self._add(entry)
+
+
+    def set_exp_source(self, experience_source):
+        self.experience_source_iter = iter(experience_source)
 
 
 # 经验重放缓冲区，主要用于收集训练样本，提取训练样本
