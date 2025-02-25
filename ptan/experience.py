@@ -799,6 +799,8 @@ class ExperienceReplayChunkBuffer:
             self.buffer.append(sample)
         else:
             self.buffer[self.pos] = sample
+
+        if (self.pos + 1) >= self.capacity:
             self.full = True
         self.pos = (self.pos + 1) % self.capacity
 
