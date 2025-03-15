@@ -379,7 +379,7 @@ class ExperienceSourceRAW:
                     # 如果状态非空，则（当前状态，所执行的动作对应的历史缓存队列）将当前状态存储在history中
                     # 所以一个样本可能就是这样对应一个队列数据
                     if state is not None:
-                        history.append((state, action, r, is_done, next_state, agent_state))
+                        history.append((state, action, r, is_done, next_state, agent_state, env_idx))
                     # 如果达到了采集的步数并且遍历索引达到了两个经验样本的指定差值，则将样本返回，待外界下一次继续获取时，从这里继续执行
                     if len(history) == self.steps_count and iter_idx % self.steps_delta == 0:
                         yield tuple(history)
