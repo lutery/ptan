@@ -119,6 +119,20 @@ class TargetNet:
         for k, v in state.items():
             tgt_state[k] = tgt_state[k] * alpha + (1 - alpha) * v
         self.target_model.load_state_dict(tgt_state)
+        
+
+    @torch.no_grad()
+    def __call__(self, *args, **kwargs):
+        """
+        使目标网络可以像函数一样被调用，直接通过 target_net(input) 使用
+        
+        参数:
+            *args, **kwargs: 传递给目标模型的参数
+            
+        返回:
+            与目标模型前向计算结果相同的输出
+        """
+        return self.target_model(*args, **kwargs)
 
 
 class PolicyAgent(BaseAgent):
