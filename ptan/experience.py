@@ -1399,3 +1399,102 @@ class A2CExperienceSourceDirect:
         if res:
             self.total_rewards, self.total_steps = [], []
         return res
+
+
+class ExperienceEpisodeeplayBuffer:
+    def __init__(self, experience_source, epsilon_size, exisode_length=300, d_type=torch.float32, device='cpu'):
+        '''
+        param experience_source: 经验池
+        param buffer_size: 每次提取的样本大小
+        '''
+        
+        # 将经验池转换为迭代器
+        self.experience_source_iter = None if experience_source is None else iter(experience_source)
+        self.buffer = deque(maxlen=epsilon_size)
+        self.episode = []
+        # 当前遍历的位置
+        self.pos = 0
+        self.d_type = d_type
+        self.device = device
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def __iter__(self):
+        return iter(self.buffer)
+    
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # 迭代器不能被pickle保存，所以移除它
+        state['experience_source_iter'] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # 加载后需要手动调用 set_exp_source() 恢复经验池
+        self.experience_source_iter = None
+
+
+    def sample(self, batch_size, chunk_length):
+        '''
+        这里传入的batch_size，采样batch_size个样本数据
+        '''
+        # 随机选择batch_size个episode
+        sampled_indices = np.random.choice(len(self.buffer), batch_size, replace=True)
+        # chunked_episodes看起来也是一个连续的片段
+        chunked_episodes = list()
+        for ep_idx in sampled_indices:
+            # 随机选择一个起始位置
+            start_idx = np.random.randint(low=0, high=len(self.buffer[ep_idx]) - chunk_length)
+            # 将选择连续的chunk_length个数据添加到chunked_episodes中
+            chunked_episodes.append(self.buffer[ep_idx][start_idx:start_idx + chunk_length])
+        # 此时chunked_episodes是一个list，里面存储的是每个episode的连续片段
+        serialized_episodes = self.serialize_episode(chunked_episodes)
+        return serialized_episodes
+
+    def _add(self, sample):
+        if sample[0][3]:
+            self.buffer.append(self.episode)
+            self.episode = []
+        else:
+            self.episode.append(sample)
+
+
+    def populate(self, samples):
+        """
+        Populates samples into the buffer 提取样本到重放缓存区中
+        :param samples: how many samples to populate  从样本池中提取多少个样本到缓冲区
+        
+        算法的原理及利用迭代器根据数量，从经验池中获取数据
+        """
+        for _ in range(samples):
+            entry = next(self.experience_source_iter)
+            self._add(entry)
+
+    
+    def serialize_episode(self, list_episodes):
+        '''
+        return 返回一个字典，里面存储的是每个episode的observation、action、reward
+        '''
+
+        batched_ep_obs, batched_ep_action, batched_ep_reward = list(), list(), list()
+        # 拆分每个episode的observation、action、reward到独立的缓存list中，list的每个元素是一个连续的obs、action、erward tensor
+        for episode in list_episodes:
+            ep_obs = torch.from_numpy(np.array([transition[0][0] for transition in episode]))
+            ep_action = torch.from_numpy(np.array([transition[0][1] for transition in episode]))
+            ep_reward = torch.from_numpy(np.array([transition[0][2] for transition in episode]))
+            batched_ep_obs.append(ep_obs)
+            batched_ep_action.append(ep_action)
+            batched_ep_reward.append(ep_reward)
+        # 最后将所有的list转换为tensor
+        # batched_ep_obs shape 是（batch_size， chunk_length， visual_resolution， visual_resolution， channels）
+        # batched_ep_action shape 是（batch_size， chunk_length， action_dim）
+        # batched_ep_reward shape 是（batch_size， chunk_length， 1）
+        batched_ep_obs = torch.stack(batched_ep_obs).to(self.d_type).to(self.device)
+        batched_ep_action = torch.stack(batched_ep_action).to(self.d_type).to(self.device)
+        batched_ep_reward = torch.stack(batched_ep_reward).to(self.d_type).to(self.device)
+        # batched_ep_obs shape 是（chunk_length， batch_size， visual_resolution， visual_resolution， channels）
+        # batched_ep_action shape 是（chunk_length， batch_size， action_dim）
+        # batched_ep_reward shape 是（chunk_length， batch_size， 1）
+        # 这里的转换是为了将时间步放在前面，方便后续的训练
+        return {'obs': batched_ep_obs.transpose(0, 1), 'action': batched_ep_action.transpose(0, 1), 'reward': batched_ep_reward.transpose(0, 1)}

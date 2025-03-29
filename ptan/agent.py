@@ -219,3 +219,24 @@ class ActorCriticAgent(BaseAgent):
         actions = self.action_selector(probs)
         agent_states = values_v.data.squeeze().cpu().numpy().tolist()
         return np.array(actions), agent_states
+    
+
+class EnvRandomSampleAgent(BaseAgent):
+    """
+    Policy agent gets action probabilities from the model and samples actions from it
+    """
+    # TODO: unify code with DQNAgent, as only action selector is differs.
+    def __init__(self, env, device="cpu"):
+        '''
+            model: 策略动作推理网络
+            preprocessor: 将计算的结果转换的数据类型，比如转换为float32
+            apply_softmax: 使用对model的计算结果使用softmax计算结果
+        '''
+        self.env = env
+        self.device = device
+
+
+    @torch.no_grad()
+    def __call__(self, observation, agent_states=None):
+
+        return [self.env.action_space.sample()], agent_states
