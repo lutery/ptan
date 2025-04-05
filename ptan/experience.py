@@ -932,6 +932,17 @@ class PrioritizedReplayBuffer(ExperienceReplayBuffer):
         self._it_min = utils.MinSegmentTree(it_capacity)
         self._max_priority = 1.0
 
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # 迭代器不能被pickle保存，所以移除它
+        state['experience_source_iter'] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+
     def _add(self, *args, **kwargs):
         idx = self.pos
         super()._add(*args, **kwargs)

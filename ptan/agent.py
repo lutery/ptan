@@ -98,11 +98,14 @@ class TargetNet:
     """
     Wrapper around model which provides copy of it instead of trained weights
     """
-    def __init__(self, model):
+    def __init__(self, model, requre_grad=True):
         # 训练的网络模型
         self.model = model
         # 拷贝一份，作为目标网路模型存储
         self.target_model = copy.deepcopy(model)
+
+        for param in self.target_model.parameters():
+            param.requires_grad = requre_grad
 
     def sync(self):
         self.target_model.load_state_dict(self.model.state_dict())
