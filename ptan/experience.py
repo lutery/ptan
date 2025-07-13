@@ -954,8 +954,7 @@ from collections import deque
 class ExperienceReplayChunkBuffer:
     def __init__(self, experience_source, buffer_size, bit_depth=32):
         '''
-        param experience_source: 经验池
-        param buffer_size: 每次提取的样本大小
+        buffer有固定大小，并且每次sample时采样batch_size个chunk_size连续片段
         '''
         
         assert isinstance(buffer_size, int)
@@ -1633,8 +1632,7 @@ class A2CExperienceSourceDirect:
 class ExperienceEpisodeeplayBuffer:
     def __init__(self, experience_source, epsilon_size, exisode_length=300, d_type=torch.float32, device='cpu'):
         '''
-        param experience_source: 经验池
-        param buffer_size: 每次提取的样本大小
+        self.buffer中每个元素是一个完整的episode周期，里面存储的是每个episode的经验样本
         '''
         
         # 将经验池转换为迭代器
