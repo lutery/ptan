@@ -1045,7 +1045,7 @@ class ExperienceReplayBuffer:
         param buffer_size: 每次提取的样本大小
         '''
         
-        assert isinstance(experience_source, (ExperienceSource, type(None)))
+        assert isinstance(experience_source, (ExperienceSource, type(None), ExperienceSourceRAW))
         assert isinstance(buffer_size, int)
         # 将经验池转换为迭代器
         self.experience_source_iter = None if experience_source is None else iter(experience_source)
