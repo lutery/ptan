@@ -116,7 +116,7 @@ class TargetNet:
         :param alpha:
         """
         assert isinstance(alpha, float)
-        assert 0.0 < alpha <= 1.0
+        assert 0.0 <= alpha <= 1.0
         state = self.model.state_dict()
         tgt_state = self.target_model.state_dict()
         for k, v in state.items():
